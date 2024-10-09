@@ -1,0 +1,29 @@
+syntax = "proto3";
+option go_package = "github.com/prof-project/go-prof-sequencer/api/v1";
+package bundlemerger.api.v1;
+
+service BundleService {
+  rpc SendBundle (BundleRequest) returns (BundleResponse);
+}
+
+message BundleRequest {
+  repeated Transaction transactions = 1; // The list of signed transactions to include in the bundle
+  string blockNumber = 2;                // The block number for which this bundle is valid (hex-encoded)
+  int64 minTimestamp = 3;                // Optional: Minimum timestamp in seconds since Unix epoch
+  int64 maxTimestamp = 4;                // Optional: Maximum timestamp in seconds since Unix epoch
+  repeated string revertingTxHashes = 5; // Optional: List of tx hashes that are allowed to revert
+  string replacementUuid = 6;            // Optional: UUID for canceling or replacing the bundle
+  repeated string builders = 7;          // Optional: List of builder names to share the bundle with
+}
+
+message BundleResponse {
+  string status = 1; // Status message of the bundle submission
+}
+
+message Transaction {
+  bytes data = 1;   // Signed transaction data (RLP-encoded)
+  uint64 gas = 2;   // Gas limit
+  uint64 nonce = 3; // Nonce for the transaction
+  string to = 4;    // Recipient address (hex-encoded)
+  string value = 5; // Transaction value (hex-encoded)
+}

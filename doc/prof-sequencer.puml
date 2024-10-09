@@ -1,0 +1,14 @@
+@startuml
+start
+:API Handling (eth_sendBundle);
+:Transaction Pool Management;
+:Sanity Checks (Validate Transactions);
+if (Valid Transactions?) then (yes)
+    :FIFO Ordering;
+    :Bundle Creation;
+    :gRPC Communication (Send to Bundle Merger);
+else (no)
+    :Reject Invalid Transactions;
+endif
+stop
+@enduml
