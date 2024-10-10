@@ -3,15 +3,15 @@ option go_package = "github.com/prof-project/go-prof-sequencer/api/v1";
 package bundlemerger.api.v1;
 
 service BundleService {
-  rpc SendBundles (BundlesRequest) returns (BundlesResponse);
+  rpc StreamBundleCollections (stream BundlesRequest) returns (stream BundlesResponse);
 }
 
 message BundlesRequest {
-  repeated Bundle bundles = 1; // The list of bundles to be sent
+  repeated Bundle bundles = 1; // Each request contains a collection of bundles
 }
 
 message BundlesResponse {
-  repeated BundleResponse bundleResponses = 1; // Response per bundle
+  repeated BundleResponse bundleResponses = 1; // Each response contains a collection of BundleResponses
 }
 
 message Bundle {
@@ -25,7 +25,9 @@ message Bundle {
 }
 
 message BundleResponse {
-  string status = 1; // Status message of the bundle submission
+  string replacementUuid = 1; // UUID of the bundle
+  string status = 2;          // Status message of the bundle submission (e.g., success or failure reason)
+  bool success = 3;           // Indicates whether the bundle was processed successfully
 }
 
 message Transaction {
