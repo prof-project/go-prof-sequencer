@@ -3,11 +3,19 @@ option go_package = "github.com/prof-project/go-prof-sequencer/api/v1";
 package bundlemerger.api.v1;
 
 service BundleService {
-  rpc SendBundle (BundleRequest) returns (BundleResponse);
+  rpc SendBundles (BundlesRequest) returns (BundlesResponse);
 }
 
-message BundleRequest {
-  repeated Transaction transactions = 1; // The list of signed transactions to include in the bundle
+message BundlesRequest {
+  repeated Bundle bundles = 1; // The list of bundles to be sent
+}
+
+message BundlesResponse {
+  repeated BundleResponse bundleResponses = 1; // Response per bundle
+}
+
+message Bundle {
+  repeated Transaction transactions = 1; // The list of signed transactions in this bundle
   string blockNumber = 2;                // The block number for which this bundle is valid (hex-encoded)
   int64 minTimestamp = 3;                // Optional: Minimum timestamp in seconds since Unix epoch
   int64 maxTimestamp = 4;                // Optional: Maximum timestamp in seconds since Unix epoch
