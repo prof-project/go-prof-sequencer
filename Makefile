@@ -7,9 +7,12 @@ init:
 clean:
 	$(MAKE) -C api/ clean
 	$(MAKE) -C app/ clean
+	$(MAKE) -C test/ clean
 
 build:
 	$(MAKE) -C app/ build
+	$(MAKE) -C test/ build
 
 rebuild: clean init
 	$(MAKE) -C app/ rebuild
+	$(MAKE) -C test/ rebuild
