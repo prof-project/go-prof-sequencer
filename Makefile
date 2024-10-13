@@ -2,10 +2,9 @@ all:
 	@echo "This is a dummy to prevent running make without explicit target!"
 
 init:
-	$(MAKE) -C api/ build
+	git submodule update --init --recursive
 
 clean:
-	$(MAKE) -C api/ clean
 	$(MAKE) -C app/ clean
 	$(MAKE) -C test/ clean
 

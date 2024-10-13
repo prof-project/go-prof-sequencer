@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/ethereum/go-ethereum/core/types"
-	pbBundleMerger "github.com/prof-project/go-prof-sequencer/api/v1"
+	pbBundleMerger "github.com/prof-project/prof-grpc/go/profpb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
 	"io"
@@ -12,6 +12,7 @@ import (
 	"time"
 )
 
+// ToDo: move to config
 const (
 	address = "localhost:50051"
 )
@@ -97,10 +98,10 @@ func processBundleCollectionResponse(stream pbBundleMerger.BundleService_StreamB
 	}
 }
 
-func serializeTransactions(transactions []*types.Transaction) []*pbBundleMerger.Transaction {
-	var serialized []*pbBundleMerger.Transaction
+func serializeTransactions(transactions []*types.Transaction) []*pbBundleMerger.BundleTransaction {
+	var serialized []*pbBundleMerger.BundleTransaction
 	for _, tx := range transactions {
-		serialized = append(serialized, &pbBundleMerger.Transaction{
+		serialized = append(serialized, &pbBundleMerger.BundleTransaction{
 			Data:  tx.Data(),
 			Gas:   tx.Gas(),
 			Nonce: tx.Nonce(),
@@ -111,8 +112,17 @@ func serializeTransactions(transactions []*types.Transaction) []*pbBundleMerger.
 	return serialized
 }
 
-func startPeriodicBundleSender(txPool *TxBundlePool, client pbBundleMerger.BundleServiceClient, interval time.Duration, bundleLimit int) {
+func startPeriodicBundleSender(txPool *TxBundlePool, interval time.Duration, bundleLimit int) {
 	go func() {
+		// Attempt to connect to the gRPC server
+		conn, err := connectToGRPCServer()
+		if err != nil {
+			log.Fatalf("Failed to connect: %v", err)
+		}
+		defer conn.Close()
+
+		client := pbBundleMerger.NewBundleServiceClient(conn)
+
 		for {
 			// Open the gRPC stream, with retry logic if the stream fails
 			stream, err := client.StreamBundleCollections(context.Background())

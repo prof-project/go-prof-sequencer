@@ -1,7 +1,6 @@
 package main
 
 import (
-	pbBundleMerger "github.com/prof-project/go-prof-sequencer/api/v1"
 	"log"
 	"net/http"
 	"time"
@@ -17,19 +16,8 @@ func main() {
 	// Start the cleanup job for the pool
 	txPool.startCleanupJob(5 * time.Second)
 
-	//// Setup the interface to the bundle-merger
-	//ToDo: define behaviour on disconnect
-	// Attempt to connect to the gRPC server
-	conn, err := connectToGRPCServer()
-	if err != nil {
-		log.Fatalf("Failed to connect: %v", err)
-	}
-	defer conn.Close()
-
-	client := pbBundleMerger.NewBundleServiceClient(conn)
-
 	// Start the periodic bundle sender (every 10 seconds up to 10 bundles at a time)
-	startPeriodicBundleSender(txPool, client, 10*time.Second, 5)
+	startPeriodicBundleSender(txPool, 10*time.Second, 10)
 
 	// Register the handler and pass the txPool to it
 	http.HandleFunc("/eth_sendBundle", handleBundleRequest(txPool))

@@ -1,2 +1,6 @@
 .DS_Store
 *.pb.go
+
+# compiled files
+app/app
+test/bundlemerger/bundlemerger

@@ -8,7 +8,7 @@ import (
 	"net"
 	"time"
 
-	pbBundleMerger "github.com/prof-project/go-prof-sequencer/api/v1"
+	pbBundleMerger "github.com/prof-project/prof-grpc/go/profpb"
 )
 
 type server struct {
@@ -22,6 +22,7 @@ func main() {
 	}
 	s := grpc.NewServer()
 	pbBundleMerger.RegisterBundleServiceServer(s, &server{})
+
 	log.Println("gRPC server running on port 50051...")
 	if err := s.Serve(lis); err != nil {
 		log.Fatalf("Failed to serve: %v", err)

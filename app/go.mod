@@ -5,7 +5,7 @@ go 1.23.2
 require (
 	github.com/ethereum/go-ethereum v1.14.11
 	github.com/google/uuid v1.6.0
-	github.com/prof-project/go-prof-sequencer/api v0.0.0-00010101000000-000000000000
+	github.com/prof-project/prof-grpc/go v0.0.0-00010101000000-000000000000
 	google.golang.org/grpc v1.67.1
 )
 
@@ -32,4 +32,4 @@ require (
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
 
-replace github.com/prof-project/go-prof-sequencer/api => ../api
+replace github.com/prof-project/prof-grpc/go => ../lib/prof-grpc/go
