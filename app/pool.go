@@ -119,7 +119,7 @@ func extractMaxGasPrice(txs []*types.Transaction) big.Int {
 	return maxGasPrice
 }*/
 
-// sort by builder priority
+// ToDo: sort by builder priority
 func sortByBuilderPriority(b1, b2 *TxPoolBundle) bool {
 	priorityB1 := getBuilderPriority(b1.Builders)
 	priorityB2 := getBuilderPriority(b2.Builders)
@@ -141,6 +141,13 @@ func getBuilderPriority(builders []string) int {
 		}
 	}
 	return priority
+}
+
+func (p *TxBundlePool) markBundleForDeletion(bundle *TxPoolBundle) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	bundle.MarkedForDeletion = true
 }
 
 func (p *TxBundlePool) markBundlesForDeletion(bundles []*TxPoolBundle) {

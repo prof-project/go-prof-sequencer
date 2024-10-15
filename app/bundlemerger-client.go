@@ -40,6 +40,7 @@ func connectToGRPCServer() (*grpc.ClientConn, error) {
 	}
 	return conn, nil
 }
+
 func streamBundleCollections(bundles []*TxPoolBundle, stream pbBundleMerger.BundleService_StreamBundleCollectionsClient) error {
 	// Convert bundles from TxPoolBundle to the gRPC Bundles format
 	var grpcBundles []*pbBundleMerger.Bundle
@@ -63,19 +64,10 @@ func streamBundleCollections(bundles []*TxPoolBundle, stream pbBundleMerger.Bund
 		return err
 	}
 
-	// Receive the response from the server
-	res, err := stream.Recv()
-	if err != nil {
-		return err
-	}
-
-	log.Printf("Received response for bundle collection: %v\n", res.BundleResponses)
-
-	// Close the stream
-	return stream.CloseSend()
+	return err
 }
 
-func processBundleCollectionResponse(stream pbBundleMerger.BundleService_StreamBundleCollectionsClient) error {
+func processBundleCollectionResponse(txPool *TxBundlePool, stream pbBundleMerger.BundleService_StreamBundleCollectionsClient) error {
 	for {
 		// Receive the response from the server
 		res, err := stream.Recv()
@@ -90,6 +82,10 @@ func processBundleCollectionResponse(stream pbBundleMerger.BundleService_StreamB
 		// Process each bundle's response
 		for _, bundleRes := range res.BundleResponses {
 			if bundleRes.Success {
+				err := txPool.cancelBundleByUuid(bundleRes.ReplacementUuid)
+				if err != nil {
+					return err
+				}
 				log.Printf("Bundle %s processed successfully: %s\n", bundleRes.ReplacementUuid, bundleRes.Status)
 			} else {
 				log.Printf("Bundle %s failed: %s\n", bundleRes.ReplacementUuid, bundleRes.Status)
@@ -134,7 +130,7 @@ func startPeriodicBundleSender(txPool *TxBundlePool, interval time.Duration, bun
 
 			// Start a goroutine to process server responses
 			go func() {
-				err := processBundleCollectionResponse(stream)
+				err := processBundleCollectionResponse(txPool, stream)
 				if err != nil {
 					log.Printf("Error processing responses: %v\n", err)
 				}
@@ -156,10 +152,7 @@ func startPeriodicBundleSender(txPool *TxBundlePool, interval time.Duration, bun
 					break // Exit the loop and attempt to reconnect
 				}
 
-				// Mark the bundles as ready for deletion
-				txPool.markBundlesForDeletion(bundles)
-
-				log.Printf("%d bundles sent via gRPC and marked for deletion\n", len(bundles))
+				log.Printf("%d bundles sent via gRPC\n", len(bundles))
 			}
 
 			// Close the stream if it fails

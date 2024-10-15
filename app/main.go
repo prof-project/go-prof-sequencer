@@ -17,7 +17,7 @@ func main() {
 	txPool.startCleanupJob(5 * time.Second)
 
 	// Start the periodic bundle sender (every 10 seconds up to 10 bundles at a time)
-	startPeriodicBundleSender(txPool, 10*time.Second, 10)
+	startPeriodicBundleSender(txPool, 5*time.Second, 100)
 
 	// Register the handler and pass the txPool to it
 	http.HandleFunc("/eth_sendBundle", handleBundleRequest(txPool))

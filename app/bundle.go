@@ -4,6 +4,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
+// ToDo: use in TxPoolBundle
 // Bundle represents the full bundle structure, including transactions and additional metadata
 type Bundle struct {
 	Transactions      []*types.Transaction // Processed and decoded Ethereum transactions
