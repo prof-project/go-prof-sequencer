@@ -15,3 +15,6 @@ build:
 rebuild: clean init
 	$(MAKE) -C app/ rebuild
 	$(MAKE) -C test/ rebuild
+
+run:
+	$(MAKE) -C app/ run
