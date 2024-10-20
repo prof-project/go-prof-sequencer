@@ -18,3 +18,9 @@ rebuild: clean init
 
 run:
 	$(MAKE) -C app/ run
+
+docker-build:
+	docker image build --platform="linux/arm64" -f ./Dockerfile ./app -t prof-project/prof-sequencer
+
+docker-run:
+	docker run --rm -it --name prof-sequencer-container prof-project/prof-sequencer

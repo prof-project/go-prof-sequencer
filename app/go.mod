@@ -1,6 +1,8 @@
 module app
 
-go 1.23.2
+go 1.22.5
+
+toolchain go1.23.2
 
 require (
 	github.com/ethereum/go-ethereum v1.14.11
@@ -32,4 +34,4 @@ require (
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
 
-replace github.com/prof-project/prof-grpc/go => ../lib/prof-grpc/go
+replace github.com/prof-project/prof-grpc/go => ./lib/prof-grpc/go

@@ -15,4 +15,4 @@ require (
 	google.golang.org/protobuf v1.35.1 // indirect
 )
 
-replace github.com/prof-project/prof-grpc/go => ./../../lib/prof-grpc/go
+replace github.com/prof-project/prof-grpc/go => ./../../app/lib/prof-grpc/go
