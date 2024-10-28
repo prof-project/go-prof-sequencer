@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -23,9 +24,28 @@ func main() {
 	http.HandleFunc("/eth_sendBundle", handleBundleRequest(txPool))
 	http.HandleFunc("/eth_cancelBundle", handleCancelBundleRequest(txPool))
 
-	//ToDo: replace with a proper logger
+	// Health check endpoint
+	http.HandleFunc("/health", healthHandler)
+
+	// ToDo: replace with a proper logger
 	log.Println("Server is running on port 8080...")
 
 	// Start the HTTP server
 	log.Fatal(http.ListenAndServe(":8080", nil))
+}
+
+func healthHandler(w http.ResponseWriter, r *http.Request) {
+	// Check the health and return a status code accordingly
+	if isHealthy() {
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, "Service is healthy")
+	} else {
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprint(w, "Service is not healthy")
+	}
+}
+
+// ToDo: implement a proper health check
+func isHealthy() bool {
+	return true
 }
