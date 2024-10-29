@@ -28,10 +28,10 @@ func main() {
 	http.HandleFunc("/health", healthHandler)
 
 	// ToDo: replace with a proper logger
-	log.Println("Server is running on port 8080...")
+	log.Println("Server is running on port 8084...")
 
 	// Start the HTTP server
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	log.Fatal(http.ListenAndServe(":8084", nil))
 }
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {
