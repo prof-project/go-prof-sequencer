@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -8,6 +9,13 @@ import (
 )
 
 func main() {
+	// Add command-line flag for gRPC URL
+	grpcURL := flag.String("grpc-url", "localhost:50051", "URL for gRPC connection to bundle merger")
+	flag.Parse()
+
+	// Log the gRPC URL being used
+	log.Printf("Using gRPC URL: %s", *grpcURL)
+
 	txPool := &TxBundlePool{
 		bundles:    []*TxPoolBundle{},
 		bundleMap:  make(map[string]*TxPoolBundle),
@@ -18,7 +26,7 @@ func main() {
 	txPool.startCleanupJob(5 * time.Second)
 
 	// Start the periodic bundle sender (every 10 seconds up to 10 bundles at a time)
-	startPeriodicBundleSender(txPool, 5*time.Second, 100)
+	startPeriodicBundleSender(txPool, 5*time.Second, 100, *grpcURL)
 
 	// Register the handler and pass the txPool to it
 	http.HandleFunc("/eth_sendBundle", handleBundleRequest(txPool))

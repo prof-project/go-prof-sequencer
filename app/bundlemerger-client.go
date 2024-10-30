@@ -12,12 +12,7 @@ import (
 	"time"
 )
 
-// ToDo: move to config
-const (
-	address = "localhost:50051"
-)
-
-func connectToGRPCServer() (*grpc.ClientConn, error) {
+func connectToGRPCServer(grpcURL string) (*grpc.ClientConn, error) {
 	// Define custom backoff settings for reconnection attempts
 	backoffConfig := backoff.Config{
 		BaseDelay:  1.0 * time.Second, // Start with a 1-second delay
@@ -26,7 +21,7 @@ func connectToGRPCServer() (*grpc.ClientConn, error) {
 	}
 
 	// Connect to gRPC server with a retry mechanism
-	conn, err := grpc.Dial("localhost:50051",
+	conn, err := grpc.Dial(grpcURL,
 		grpc.WithInsecure(),
 		grpc.WithBlock(), // Block until connection is established
 		grpc.WithConnectParams(grpc.ConnectParams{
@@ -36,7 +31,7 @@ func connectToGRPCServer() (*grpc.ClientConn, error) {
 	)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to gRPC server: %v", err)
+		return nil, fmt.Errorf("failed to connect to gRPC server at %s: %v", grpcURL, err)
 	}
 	return conn, nil
 }
@@ -108,12 +103,12 @@ func serializeTransactions(transactions []*types.Transaction) []*pbBundleMerger.
 	return serialized
 }
 
-func startPeriodicBundleSender(txPool *TxBundlePool, interval time.Duration, bundleLimit int) {
+func startPeriodicBundleSender(txPool *TxBundlePool, interval time.Duration, bundleLimit int, grpcURL string) {
 	go func() {
 		// Attempt to connect to the gRPC server
-		conn, err := connectToGRPCServer()
+		conn, err := connectToGRPCServer(grpcURL)
 		if err != nil {
-			log.Fatalf("Failed to connect: %v", err)
+			log.Fatalf("Failed to connect to %s: %v", grpcURL, err)
 		}
 		defer conn.Close()
 
