@@ -3,13 +3,14 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
+	"log"
+	"time"
+
 	"github.com/ethereum/go-ethereum/core/types"
 	pbBundleMerger "github.com/prof-project/prof-grpc/go/profpb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
-	"io"
-	"log"
-	"time"
 )
 
 func connectToGRPCServer(grpcURL string) (*grpc.ClientConn, error) {
@@ -135,7 +136,7 @@ func startPeriodicBundleSender(txPool *TxBundlePool, interval time.Duration, bun
 				time.Sleep(interval)
 
 				// Retrieve a batch of bundles ready for processing
-				bundles := txPool.getBundlesForProcessing(bundleLimit)
+				bundles := txPool.getBundlesForProcessing(bundleLimit, false)
 				if len(bundles) == 0 {
 					continue // No bundles to process, skip this iteration
 				}
