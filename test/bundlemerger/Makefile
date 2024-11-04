@@ -8,3 +8,6 @@ build: _tidy
 	go build
 
 rebuild: clean build
+
+start-testserver:
+	./bundlemerger

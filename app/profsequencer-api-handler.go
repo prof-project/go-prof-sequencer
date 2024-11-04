@@ -26,10 +26,9 @@ type SendBundleParams struct {
 	Builders          []string `json:"builders,omitempty"`          // Optional list of builder names
 }
 
-// Handle eth_sendBundle requests
 func handleBundleRequest(txPool *TxBundlePool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var req SendBundleRequest // Declare the correct struct for the request
+		var req SendBundleRequest
 
 		// Decode the incoming request body into the SendBundleRequest struct
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -48,6 +47,9 @@ func handleBundleRequest(txPool *TxBundlePool) http.HandlerFunc {
 			http.Error(w, "Missing params", http.StatusBadRequest)
 			return
 		}
+
+		var processedBundles []string
+		var failedBundles []string
 
 		// Process each bundle in the Params array
 		for _, params := range req.Params {
@@ -83,6 +85,7 @@ func handleBundleRequest(txPool *TxBundlePool) http.HandlerFunc {
 			// Ensure at least one valid transaction exists in the bundle
 			if len(validTxs) == 0 {
 				log.Printf("No valid transactions in the bundle for UUID: %s\n", params.ReplacementUuid)
+				failedBundles = append(failedBundles, params.ReplacementUuid)
 				continue
 			}
 
@@ -93,25 +96,31 @@ func handleBundleRequest(txPool *TxBundlePool) http.HandlerFunc {
 				MinTimestamp:      params.MinTimestamp,
 				MaxTimestamp:      params.MaxTimestamp,
 				RevertingTxHashes: params.RevertingTxHashes,
-				ReplacementUuid:   params.ReplacementUuid, // Use either the provided or newly generated UUID
+				ReplacementUuid:   params.ReplacementUuid,
 				Builders:          params.Builders,
 			}
 
 			// Add the bundle to the transaction pool
 			err := txPool.addBundle(&bundle, false)
 			if err != nil {
-				http.Error(w, fmt.Sprintf("Failed to add bundle with UUID %s to pool: %v", bundle.ReplacementUuid, err), http.StatusBadRequest)
 				log.Printf("Failed to add bundle with UUID %s to pool: %v\n", bundle.ReplacementUuid, err)
-				return
+				failedBundles = append(failedBundles, bundle.ReplacementUuid)
+				continue
 			}
 
+			processedBundles = append(processedBundles, bundle.ReplacementUuid)
 			log.Printf("Bundle with UUID %s received and added to the pool", bundle.ReplacementUuid)
 		}
 
-		//ToDo: implement proper reply
-		// Respond with success after all bundles are processed
+		// Respond with the result
+		response := map[string]interface{}{
+			"processedBundles": processedBundles,
+			"failedBundles":    failedBundles,
+		}
+
+		responseBody, _ := json.Marshal(response)
 		w.WriteHeader(http.StatusAccepted)
-		w.Write([]byte("Bundles received and added to the pool"))
+		w.Write(responseBody)
 	}
 }
 
