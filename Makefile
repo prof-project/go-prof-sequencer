@@ -18,13 +18,16 @@ run:
 	$(MAKE) -C app/ run
 
 docker-build:
-	docker image build --no-cache --platform="linux/amd64" -f ./Dockerfile ./app -t prof-project/prof-sequencer
+	docker image build --platform="linux/amd64" -f ./Dockerfile ./app -t prof-project/prof-sequencer
 
 docker-build-noauth:
-	docker image build --no-cache --platform="linux/amd64" --build-arg BUILD_TAGS=noauth -f ./Dockerfile ./app -t prof-project/prof-sequencer-noauth
+	docker image build --platform="linux/amd64" --build-arg BUILD_TAGS=noauth -f ./Dockerfile ./app -t prof-project/prof-sequencer-noauth
 
 docker-run:
-	docker run --rm -it --name prof-sequencer-container prof-project/prof-sequencer
+	docker run --rm -it -p 8084:8084 --name prof-sequencer-container prof-project/prof-sequencer
+
+docker-run-noauth:
+	docker run --rm -it -p 8084:8084 --name prof-sequencer-container prof-project/prof-sequencer-noauth
 
 start-testserver:
 	$(MAKE) -C test/ rebuild

@@ -9,7 +9,7 @@ import (
 
 func main() {
 	// Add command-line flag for gRPC URL
-	grpcURL := flag.String("grpc-url", "localhost:50051", "URL for gRPC connection to bundle merger")
+	grpcURL := flag.String("grpc-url", "127.0.0.1:50051", "URL for gRPC connection to bundle merger")
 	flag.Parse()
 
 	// Log the gRPC URL being used
@@ -20,6 +20,10 @@ func main() {
 		bundleMap:  make(map[string]*TxPoolBundle),
 		customSort: sortByBlockNumber,
 	}
+
+	// Set the Gin to debug mode
+	// ToDo: change to release mode in production
+	gin.SetMode(gin.DebugMode)
 
 	// Start the cleanup job for the pool
 	txPool.startCleanupJob(5 * time.Second)

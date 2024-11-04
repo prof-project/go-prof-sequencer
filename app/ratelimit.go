@@ -9,7 +9,7 @@ import (
 
 var (
 	rateLimiter = make(map[string][]time.Time)
-	rateLimit   = 10 // Max 10 requests per minute
+	rateLimit   = 300 // Max 300 requests per minute
 	windowSize  = time.Minute
 	mu          sync.Mutex
 )
