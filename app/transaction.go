@@ -1,8 +1,10 @@
 package main
 
 import (
-	"github.com/ethereum/go-ethereum/core/types"
 	"log"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 )
 
 func isValidTransaction(tx *types.Transaction) bool {
@@ -16,5 +18,8 @@ func isValidTransaction(tx *types.Transaction) bool {
 		log.Printf("Transaction has insufficient gas: %d", tx.Gas())
 		return false
 	}
-	return true
+
+	// ToDo: Add validation logic here
+
+	return tx != nil && tx.Hash() != (common.Hash{})
 }

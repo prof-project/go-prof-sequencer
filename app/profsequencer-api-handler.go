@@ -3,10 +3,12 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/google/uuid"
+	"io"
 	"log"
 	"net/http"
+
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/google/uuid"
 )
 
 type SendBundleRequest struct {
@@ -30,8 +32,15 @@ func handleBundleRequest(txPool *TxBundlePool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req SendBundleRequest
 
+		// Read the raw request body
+		rawBody, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, "Failed to read request body: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
 		// Decode the incoming request body into the SendBundleRequest struct
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err := json.Unmarshal(rawBody, &req); err != nil {
 			http.Error(w, "Invalid request payload: "+err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -68,15 +77,46 @@ func handleBundleRequest(txPool *TxBundlePool) http.HandlerFunc {
 					log.Printf("Failed to decode transaction hex: %v\n", err)
 					continue
 				}
+
 				tx := new(types.Transaction)
 				err = tx.UnmarshalBinary(txData)
 				if err != nil {
 					log.Printf("Failed to unmarshal transaction: %v\n", err)
 					continue
 				}
+				// Optional logging
+				if false {
+					// Derive the sender address based on the transaction type
+					var signer types.Signer
+					switch tx.Type() {
+					case types.LegacyTxType:
+						signer = types.HomesteadSigner{}
+					case types.AccessListTxType:
+						signer = types.NewEIP2930Signer(tx.ChainId())
+					case types.DynamicFeeTxType:
+						signer = types.NewLondonSigner(tx.ChainId())
+					default:
+						log.Printf("Unsupported transaction type: %d\n", tx.Type())
+						continue
+					}
+
+					from, err := types.Sender(signer, tx)
+					if err != nil {
+						log.Printf("Failed to derive sender address: %v\n", err)
+						continue
+					}
+
+					// Get the signature values
+					v, r, s := tx.RawSignatureValues()
+
+					log.Printf("Transaction details: %+v\n", tx)
+					log.Printf("Sender address: %s\n", from.Hex())
+					log.Printf("Signature values: v=%d, r=%x, s=%x\n", v, r, s)
+				}
 
 				if isValidTransaction(tx) {
 					validTxs = append(validTxs, tx)
+					log.Printf("Valid transaction: %+v\n", tx)
 				} else {
 					log.Printf("Skipping invalid transaction: %+v\n", tx)
 				}

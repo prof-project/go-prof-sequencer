@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/rlp"
 	pbBundleMerger "github.com/prof-project/prof-grpc/go/profpb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
@@ -93,13 +94,12 @@ func processBundleCollectionResponse(txPool *TxBundlePool, stream pbBundleMerger
 func serializeTransactions(transactions []*types.Transaction) []*pbBundleMerger.BundleTransaction {
 	var serialized []*pbBundleMerger.BundleTransaction
 	for _, tx := range transactions {
-		serialized = append(serialized, &pbBundleMerger.BundleTransaction{
-			Data:  tx.Data(),
-			Gas:   tx.Gas(),
-			Nonce: tx.Nonce(),
-			To:    tx.To().Hex(),
-			Value: tx.Value().String(),
-		})
+		data, err := rlp.EncodeToBytes(tx)
+		if err != nil {
+			log.Printf("Failed to serialize transaction: %v\n", err)
+			continue
+		}
+		serialized = append(serialized, &pbBundleMerger.BundleTransaction{Data: data})
 	}
 	return serialized
 }
