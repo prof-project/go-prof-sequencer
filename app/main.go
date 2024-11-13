@@ -28,8 +28,8 @@ func main() {
 	// Start the cleanup job for the pool
 	txPool.startCleanupJob(5 * time.Second)
 
-	// Start the periodic bundle sender (every 10 seconds up to 10 bundles at a time)
-	startPeriodicBundleSender(txPool, 5*time.Second, 100, *grpcURL)
+	// Start the periodic bundle sender
+	startPeriodicBundleSender(txPool, 5*time.Second, 1, *grpcURL)
 
 	r := gin.Default()
 	// ToDo: define the trusted proxies in production
