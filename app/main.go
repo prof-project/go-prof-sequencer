@@ -2,9 +2,10 @@ package main
 
 import (
 	"flag"
-	"github.com/gin-gonic/gin"
 	"log"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 func main() {
@@ -29,7 +30,7 @@ func main() {
 	txPool.startCleanupJob(5 * time.Second)
 
 	// Start the periodic bundle sender
-	startPeriodicBundleSender(txPool, 5*time.Second, 1, *grpcURL)
+	go startPeriodicBundleSender(txPool, 5*time.Second, 1, *grpcURL)
 
 	r := gin.Default()
 	// ToDo: define the trusted proxies in production
