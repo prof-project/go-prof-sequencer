@@ -53,31 +53,10 @@ jobs:
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
 
-    - name: Generate artifact attestation
-      uses: actions/attest-build-provenance@v1
-      with:
-        subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME}}
-        subject-digest: ${{ steps.push.outputs.digest }}
-        push-to-registry: true
-
-    # - name: Set up Docker Buildx
-    #   uses: docker/setup-buildx-action@v1
-
-    # - name: Log in to GitHub Container Registry
-    #   uses: docker/login-action@v1
+    # ToDo: enable with GitHub enterprise
+    # - name: Generate artifact attestation
+    #   uses: actions/attest-build-provenance@v1
     #   with:
-    #     registry: ghcr.io
-    #     username: ${{ github.actor }}
-    #     password: ${{ secrets.GITHUB_TOKEN }}
-
-    # - name: Build and push Docker image
-    #   run: |
-    #     if [ "${{ github.event_name }}" = "pull_request" ]; then
-    #       IMAGE_TAG="pr-${{ github.event.pull_request.number }}"
-    #     else
-    #       IMAGE_TAG="latest"
-    #     fi
-    #     make docker-publish TAG=${IMAGE_TAG}
-    #   env:
-    #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    #     GITHUB_ACTOR: ${{ github.actor }}
+    #     subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME}}
+    #     subject-digest: ${{ steps.push.outputs.digest }}
+    #     push-to-registry: true
