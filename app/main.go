@@ -56,8 +56,8 @@ func main() {
 	r.POST("/login", jwtLoginHandler)
 
 	// ToDo: replace with a proper logger
-	log.Println("Server is running on port 8084...")
+	log.Println("Server is running on port 80...")
 
 	// Start the HTTP server
-	log.Fatal(r.Run(":8084"))
+	log.Fatal(r.Run(":80"))
 }

@@ -21,7 +21,4 @@ COPY --from=builder /go/bin/servicebinary /servicebinary
 # Expose the port your service listens on
 EXPOSE 80
 
-# Add the health check
-HEALTHCHECK --interval=10s --timeout=5s --retries=3 CMD curl -sf http://127.0.0.1:8084/health || exit 1
-
 ENTRYPOINT ["/servicebinary"]
