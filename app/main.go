@@ -37,7 +37,7 @@ func main() {
 	r.SetTrustedProxies(nil)
 
 	// Apply JWT authentication and rate limiting to protected routes
-	protected := r.Group("/", jwtAuthMiddleware([]string{"user"}), rateLimitMiddleware())
+	protected := r.Group("/sequencer", jwtAuthMiddleware([]string{"user"}), rateLimitMiddleware())
 	{
 		protected.POST("/eth_sendBundle", func(c *gin.Context) {
 			handleBundleRequest(txPool)(c.Writer, c.Request)
@@ -48,12 +48,12 @@ func main() {
 	}
 
 	// Health check endpoint
-	r.GET("/health", func(c *gin.Context) {
+	r.GET("/sequencer/health", func(c *gin.Context) {
 		healthHandler(c.Writer, c.Request)
 	})
 
 	// JWT login endpoint
-	r.POST("/login", jwtLoginHandler)
+	r.POST("/sequencer/login", jwtLoginHandler)
 
 	// ToDo: replace with a proper logger
 	log.Println("Server is running on port 80...")
