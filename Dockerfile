@@ -12,5 +12,9 @@ RUN --mount=target=. \
      GOOS=$TARGETOS GOARCH=$TARGETARCH CGO_ENABLED=0 go build -tags "$BUILD_TAGS" -o /go/bin/servicebinary
 
 FROM alpine
+
+# Install curl
+RUN apk add --no-cache curl
+
 COPY --from=builder /go/bin/servicebinary /servicebinary
 ENTRYPOINT ["/servicebinary"]
