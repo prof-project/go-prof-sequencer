@@ -45,12 +45,8 @@ func main() {
 	// Apply JWT authentication and rate limiting to protected routes
 	protected := r.Group("/sequencer", jwtAuthMiddleware([]string{"user"}), rateLimitMiddleware())
 	{
-		protected.POST("/eth_sendBundle", func(c *gin.Context) {
-			handleBundleRequest(txPool)(c.Writer, c.Request)
-		})
-		protected.POST("/eth_cancelBundle", func(c *gin.Context) {
-			handleCancelBundleRequest(txPool)(c.Writer, c.Request)
-		})
+		protected.POST("/eth_sendBundle", handleBundleRequest(txPool))
+		protected.POST("/eth_cancelBundle", handleCancelBundleRequest(txPool))
 	}
 
 	// Apply rate limiting to unprotected routes

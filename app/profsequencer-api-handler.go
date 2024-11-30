@@ -2,12 +2,12 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
 
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
 
@@ -28,32 +28,32 @@ type SendBundleParams struct {
 	Builders          []string `json:"builders,omitempty"`          // Optional list of builder names
 }
 
-func handleBundleRequest(txPool *TxBundlePool) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func handleBundleRequest(txPool *TxBundlePool) gin.HandlerFunc {
+	return func(c *gin.Context) {
 		var req SendBundleRequest
 
 		// Read the raw request body
-		rawBody, err := io.ReadAll(r.Body)
+		rawBody, err := io.ReadAll(c.Request.Body)
 		if err != nil {
-			http.Error(w, "Failed to read request body: "+err.Error(), http.StatusInternalServerError)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read request body: " + err.Error()})
 			return
 		}
 
 		// Decode the incoming request body into the SendBundleRequest struct
 		if err := json.Unmarshal(rawBody, &req); err != nil {
-			http.Error(w, "Invalid request payload: "+err.Error(), http.StatusBadRequest)
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload: " + err.Error()})
 			return
 		}
 
 		// Ensure the method is eth_sendBundle
 		if req.Method != "eth_sendBundle" {
-			http.Error(w, "Invalid method: "+req.Method, http.StatusBadRequest)
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid method: " + req.Method})
 			return
 		}
 
 		// Ensure there are bundles in the params
 		if len(req.Params) == 0 {
-			http.Error(w, "Missing params", http.StatusBadRequest)
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing params"})
 			return
 		}
 
@@ -158,9 +158,7 @@ func handleBundleRequest(txPool *TxBundlePool) http.HandlerFunc {
 			"failedBundles":    failedBundles,
 		}
 
-		responseBody, _ := json.Marshal(response)
-		w.WriteHeader(http.StatusAccepted)
-		w.Write(responseBody)
+		c.JSON(http.StatusAccepted, response)
 	}
 }
 
@@ -176,25 +174,25 @@ type CancelBundleParams struct {
 }
 
 // Handle eth_cancelBundle requests
-func handleCancelBundleRequest(txPool *TxBundlePool) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func handleCancelBundleRequest(txPool *TxBundlePool) gin.HandlerFunc {
+	return func(c *gin.Context) {
 		var req CancelBundleRequest
 
 		// Parse the JSON body into the CancelBundleRequest struct
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "Invalid request payload: "+err.Error(), http.StatusBadRequest)
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload: " + err.Error()})
 			return
 		}
 
 		// Ensure the method is eth_cancelBundle
 		if req.Method != "eth_cancelBundle" {
-			http.Error(w, "Invalid method: "+req.Method, http.StatusBadRequest)
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid method: " + req.Method})
 			return
 		}
 
 		// Ensure there are bundles in the params
 		if len(req.Params) == 0 {
-			http.Error(w, "Missing params", http.StatusBadRequest)
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing params"})
 			return
 		}
 
@@ -228,15 +226,14 @@ func handleCancelBundleRequest(txPool *TxBundlePool) http.HandlerFunc {
 
 		// Handle partial success or failure
 		if len(failedBundles) > 0 {
-			response["error"] = fmt.Sprintf("Failed to cancel bundles with UUIDs: %v", failedBundles)
-			w.WriteHeader(http.StatusMultiStatus) // 207 Multi-Status (to indicate partial success)
+			response["error"] = map[string]interface{}{
+				"message":       "Failed to cancel some bundles",
+				"failedBundles": failedBundles,
+			}
+			c.JSON(http.StatusMultiStatus, response) // 207 Multi-Status (to indicate partial success)
 		} else {
 			response["result"] = "All bundles canceled successfully"
-			w.WriteHeader(http.StatusOK)
+			c.JSON(http.StatusOK, response)
 		}
-
-		// Respond with the JSON result
-		responseBody, _ := json.Marshal(response)
-		w.Write(responseBody)
 	}
 }
