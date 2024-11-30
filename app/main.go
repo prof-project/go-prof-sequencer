@@ -47,13 +47,17 @@ func main() {
 		})
 	}
 
-	// Health check endpoint
-	r.GET("/sequencer/health", func(c *gin.Context) {
-		healthHandler(c.Writer, c.Request)
-	})
+	// Apply rate limiting to unprotected routes
+	unprotected := r.Group("/sequencer", rateLimitMiddleware())
+	{
+		// Health check endpoint
+		unprotected.GET("/health", func(c *gin.Context) {
+			healthHandler(c.Writer, c.Request)
+		})
 
-	// JWT login endpoint
-	r.POST("/sequencer/login", jwtLoginHandler)
+		// JWT login endpoint
+		unprotected.POST("/login", jwtLoginHandler)
+	}
 
 	// ToDo: replace with a proper logger
 	log.Println("Server is running on port 80...")
