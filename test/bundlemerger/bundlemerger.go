@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/http"
 	"time"
 
 	"google.golang.org/grpc"
@@ -26,6 +27,9 @@ func main() {
 
 	log.Println("gRPC server running on port 50051...")
 
+	// Start health check endpoint
+	go startHealthCheck()
+
 	// Log incoming connections
 	go func() {
 		for {
@@ -41,6 +45,18 @@ func main() {
 
 	if err := s.Serve(lis); err != nil {
 		log.Fatalf("Failed to serve: %v", err)
+	}
+}
+
+// Start a simple HTTP server for health checks
+func startHealthCheck() {
+	http.HandleFunc("/sequencer-testserver/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("ok"))
+	})
+	log.Println("Health check endpoint running on port 80...")
+	if err := http.ListenAndServe(":80", nil); err != nil {
+		log.Fatalf("Failed to start health check endpoint: %v", err)
 	}
 }
 

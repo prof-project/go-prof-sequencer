@@ -21,4 +21,7 @@ COPY --from=builder /go/bin/servicebinary /servicebinary
 # Expose the port your service listens on
 EXPOSE 50051
 
+# Expose the port for the health check
+EXPOSE 80
+
 ENTRYPOINT ["/servicebinary"]
