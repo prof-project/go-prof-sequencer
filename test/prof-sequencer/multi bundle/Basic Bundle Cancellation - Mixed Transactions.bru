@@ -5,9 +5,9 @@ meta {
 }
 
 post {
-  url: http://127.0.0.1:8084/eth_cancelBundle
+  url: {{server-uri}}/sequencer/eth_cancelBundle
   body: json
-  auth: none
+  auth: inherit
 }
 
 body:json {

@@ -1,25 +1,18 @@
 package main
 
 import (
-	"fmt"
 	"net/http"
+
+	"github.com/gin-gonic/gin"
 )
 
 // healthHandler is the handler for the health check endpoint
-func healthHandler(w http.ResponseWriter, r *http.Request) {
+func healthHandler(c *gin.Context) {
 	// Check the health and return a status code accordingly
 	if isHealthy() {
-		w.WriteHeader(http.StatusOK)
-		_, err := fmt.Fprint(w, "Service is healthy")
-		if err != nil {
-			return
-		}
+		c.JSON(http.StatusOK, gin.H{"status": "healthy"})
 	} else {
-		w.WriteHeader(http.StatusInternalServerError)
-		_, err := fmt.Fprint(w, "Service is not healthy")
-		if err != nil {
-			return
-		}
+		c.JSON(http.StatusOK, gin.H{"status": "not healthy"})
 	}
 }
 

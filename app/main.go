@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/sirupsen/logrus"
 )
 
 func main() {
@@ -32,7 +33,12 @@ func main() {
 	// Start the periodic bundle sender
 	go startPeriodicBundleSender(txPool, 5*time.Second, 1, *grpcURL)
 
-	r := gin.Default()
+	// Create a new Gin router
+	r := gin.New()
+
+	// Use the custom logger middleware to log all HTTP requests
+	r.Use(CustomLogger())
+
 	// ToDo: define the trusted proxies in production
 	r.SetTrustedProxies(nil)
 
@@ -51,9 +57,7 @@ func main() {
 	unprotected := r.Group("/sequencer", rateLimitMiddleware())
 	{
 		// Health check endpoint
-		unprotected.GET("/health", func(c *gin.Context) {
-			healthHandler(c.Writer, c.Request)
-		})
+		unprotected.GET("/health", healthHandler)
 
 		// JWT login endpoint
 		unprotected.POST("/login", jwtLoginHandler)
@@ -64,4 +68,36 @@ func main() {
 
 	// Start the HTTP server
 	log.Fatal(r.Run(":80"))
+}
+
+// CustomLogger is a middleware function that logs detailed information about each request
+func CustomLogger() gin.HandlerFunc {
+	logger := logrus.New()
+	logger.SetFormatter(&logrus.TextFormatter{
+		FullTimestamp: true,
+	})
+
+	return func(c *gin.Context) {
+		startTime := time.Now()
+
+		// Process request
+		c.Next()
+
+		// Calculate latency
+		latency := time.Since(startTime)
+
+		// Get status code
+		statusCode := c.Writer.Status()
+
+		// Log details
+		logger.WithFields(logrus.Fields{
+			"status_code":  statusCode,
+			"latency_time": latency,
+			"client_ip":    c.ClientIP(),
+			"method":       c.Request.Method,
+			"path":         c.Request.URL.Path,
+			"user_agent":   c.Request.UserAgent(),
+			"error":        c.Errors.ByType(gin.ErrorTypePrivate).String(),
+		}).Info("Request details")
+	}
 }

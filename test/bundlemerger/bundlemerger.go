@@ -25,6 +25,20 @@ func main() {
 	pbBundleMerger.RegisterBundleServiceServer(s, &server{})
 
 	log.Println("gRPC server running on port 50051...")
+
+	// Log incoming connections
+	go func() {
+		for {
+			conn, err := lis.Accept()
+			if err != nil {
+				log.Printf("Failed to accept connection: %v", err)
+				continue
+			}
+			log.Printf("Accepted new connection from %v", conn.RemoteAddr())
+			conn.Close()
+		}
+	}()
+
 	if err := s.Serve(lis); err != nil {
 		log.Fatalf("Failed to serve: %v", err)
 	}
