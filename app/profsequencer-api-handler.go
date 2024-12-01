@@ -117,6 +117,7 @@ func handleBundleRequest(txPool *TxBundlePool) http.HandlerFunc {
 				if isValidTransaction(tx) {
 					validTxs = append(validTxs, tx)
 					log.Printf("Valid transaction: %+v\n", tx)
+					log.Printf("Transaction nonce: %d\n", tx.Nonce())
 				} else {
 					log.Printf("Skipping invalid transaction: %+v\n", tx)
 				}
@@ -138,6 +139,12 @@ func handleBundleRequest(txPool *TxBundlePool) http.HandlerFunc {
 				RevertingTxHashes: params.RevertingTxHashes,
 				ReplacementUuid:   params.ReplacementUuid,
 				Builders:          params.Builders,
+			}
+
+			// Log details of each transaction in the bundle
+			for j, tx := range bundle.Txs {
+				log.Printf("Transaction %d: To: %!s(func() *common.Address=%p), Nonce: %d, Gas: %d, Value: %!s(func() *big.Int=%p)",
+					j+1, tx.To(), tx.Nonce(), tx.Gas(), tx.Value())
 			}
 
 			// Add the bundle to the transaction pool
