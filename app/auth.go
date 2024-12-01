@@ -3,11 +3,14 @@
 package main
 
 import (
-	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v4"
+	"log"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v4"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // Claims defines the JWT claims
@@ -28,13 +31,25 @@ type User struct {
 // ToDo: replace with a proper key for production
 var jwtKey = []byte("my_secret_key")
 
-// tokens is a slice to store the generated tokens
-var tokens []string
-
-// Create a map to store users
+// Create a map to store users with hashed passwords
 var users = map[string]User{
-	"admin": {Username: "admin", Password: "secret", Roles: []string{"admin", "user"}},
-	"user1": {Username: "user1", Password: "password1", Roles: []string{"user"}},
+	"admin": {Username: "admin", Password: hashPassword("secret"), Roles: []string{"admin", "user"}},
+	"user1": {Username: "user1", Password: hashPassword("password1"), Roles: []string{"user"}},
+}
+
+// hashPassword hashes a plain text password using bcrypt
+func hashPassword(password string) string {
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		log.Fatalf("Failed to hash password: %v", err)
+	}
+	return string(hashedPassword)
+}
+
+// checkPassword compares a plain text password with a hashed password
+func checkPassword(hashedPassword, password string) bool {
+	err := bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
+	return err == nil
 }
 
 // jwtLoginHandler is the handler for the JWT login endpoint
@@ -50,7 +65,7 @@ func jwtLoginHandler(c *gin.Context) {
 	}
 
 	user, exists := users[loginVals.Username]
-	if !exists || user.Password != loginVals.Password {
+	if !exists || !checkPassword(user.Password, loginVals.Password) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
 		return
 	}
@@ -60,7 +75,6 @@ func jwtLoginHandler(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
 		return
 	}
-	tokens = append(tokens, token)
 
 	c.JSON(http.StatusOK, gin.H{
 		"token": token,
@@ -101,10 +115,13 @@ func jwtAuthMiddleware(requiredRoles []string) gin.HandlerFunc {
 		})
 
 		if err != nil || !token.Valid {
+			log.Printf("Invalid token: %v", err)
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
 			c.Abort()
 			return
 		}
+
+		log.Printf("Authenticated user: %s", claims.Username)
 
 		hasRole := false
 		for _, role := range claims.Roles {

@@ -2,9 +2,11 @@ package main
 
 import (
 	"flag"
-	"github.com/gin-gonic/gin"
 	"log"
 	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/sirupsen/logrus"
 )
 
 func main() {
@@ -29,34 +31,69 @@ func main() {
 	txPool.startCleanupJob(5 * time.Second)
 
 	// Start the periodic bundle sender
-	startPeriodicBundleSender(txPool, 5*time.Second, 1, *grpcURL)
+	go startPeriodicBundleSender(txPool, 5*time.Second, 1, *grpcURL)
 
-	r := gin.Default()
+	// Create a new Gin router
+	r := gin.New()
+
+	// Use the custom logger middleware to log all HTTP requests
+	r.Use(CustomLogger())
+
 	// ToDo: define the trusted proxies in production
 	r.SetTrustedProxies(nil)
 
 	// Apply JWT authentication and rate limiting to protected routes
-	protected := r.Group("/", jwtAuthMiddleware([]string{"user"}), rateLimitMiddleware())
+	protected := r.Group("/sequencer", jwtAuthMiddleware([]string{"user"}), rateLimitMiddleware())
 	{
-		protected.POST("/eth_sendBundle", func(c *gin.Context) {
-			handleBundleRequest(txPool)(c.Writer, c.Request)
-		})
-		protected.POST("/eth_cancelBundle", func(c *gin.Context) {
-			handleCancelBundleRequest(txPool)(c.Writer, c.Request)
-		})
+		protected.POST("/eth_sendBundle", handleBundleRequest(txPool))
+		protected.POST("/eth_cancelBundle", handleCancelBundleRequest(txPool))
 	}
 
-	// Health check endpoint
-	r.GET("/health", func(c *gin.Context) {
-		healthHandler(c.Writer, c.Request)
-	})
+	// Apply rate limiting to unprotected routes
+	unprotected := r.Group("/sequencer", rateLimitMiddleware())
+	{
+		// Health check endpoint
+		unprotected.GET("/health", healthHandler)
 
-	// JWT login endpoint
-	r.POST("/login", jwtLoginHandler)
+		// JWT login endpoint
+		unprotected.POST("/login", jwtLoginHandler)
+	}
 
 	// ToDo: replace with a proper logger
-	log.Println("Server is running on port 8084...")
+	log.Println("Server is running on port 80...")
 
 	// Start the HTTP server
-	log.Fatal(r.Run(":8084"))
+	log.Fatal(r.Run(":80"))
+}
+
+// CustomLogger is a middleware function that logs detailed information about each request
+func CustomLogger() gin.HandlerFunc {
+	logger := logrus.New()
+	logger.SetFormatter(&logrus.TextFormatter{
+		FullTimestamp: true,
+	})
+
+	return func(c *gin.Context) {
+		startTime := time.Now()
+
+		// Process request
+		c.Next()
+
+		// Calculate latency
+		latency := time.Since(startTime)
+
+		// Get status code
+		statusCode := c.Writer.Status()
+
+		// Log details
+		logger.WithFields(logrus.Fields{
+			"status_code":  statusCode,
+			"latency_time": latency,
+			"client_ip":    c.ClientIP(),
+			"method":       c.Request.Method,
+			"path":         c.Request.URL.Path,
+			"user_agent":   c.Request.UserAgent(),
+			"error":        c.Errors.ByType(gin.ErrorTypePrivate).String(),
+		}).Info("Request details")
+	}
 }

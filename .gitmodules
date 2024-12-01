@@ -1,3 +1,7 @@
 [submodule "app/lib/prof-grpc"]
 	path = app/lib/prof-grpc
 	url = https://github.com/prof-project/prof-grpc.git
+
+[submodule "test/bundlemerger/lib/prof-grpc"]
+	path = test/bundlemerger/lib/prof-grpc
+	url = https://github.com/prof-project/prof-grpc.git

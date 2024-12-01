@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
 	"log"
 	"time"
 
@@ -12,9 +11,12 @@ import (
 	pbBundleMerger "github.com/prof-project/prof-grpc/go/profpb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 func connectToGRPCServer(grpcURL string) (*grpc.ClientConn, error) {
+	log.Printf("Attempting to connect to gRPC server at %s...", grpcURL)
+
 	// Define custom backoff settings for reconnection attempts
 	backoffConfig := backoff.Config{
 		BaseDelay:  1.0 * time.Second, // Start with a 1-second delay
@@ -22,73 +24,36 @@ func connectToGRPCServer(grpcURL string) (*grpc.ClientConn, error) {
 		MaxDelay:   120 * time.Second, // Maximum backoff delay
 	}
 
-	// Connect to gRPC server with a retry mechanism
 	conn, err := grpc.Dial(grpcURL,
-		grpc.WithInsecure(),
-		grpc.WithBlock(), // Block until connection is established
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithConnectParams(grpc.ConnectParams{
 			Backoff:           backoffConfig,
-			MinConnectTimeout: 5 * time.Second, // Minimum time to wait for connection
+			MinConnectTimeout: 5 * time.Second,
 		}),
 	)
-
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to gRPC server at %s: %v", grpcURL, err)
+		return nil, fmt.Errorf("connection failed: %v", err)
 	}
+
+	log.Printf("Connected to gRPC server at %s", grpcURL)
 	return conn, nil
 }
 
-func streamBundleCollections(bundles []*TxPoolBundle, stream pbBundleMerger.BundleService_StreamBundleCollectionsClient) error {
-	// Convert bundles from TxPoolBundle to the gRPC Bundles format
-	var grpcBundles []*pbBundleMerger.Bundle
-	for _, bundle := range bundles {
-		grpcBundles = append(grpcBundles, &pbBundleMerger.Bundle{
-			Transactions:      serializeTransactions(bundle.Txs),
-			ReplacementUuid:   bundle.ReplacementUuid,
-			BlockNumber:       bundle.BlockNumber,
-			MinTimestamp:      bundle.MinTimestamp,
-			MaxTimestamp:      bundle.MaxTimestamp,
-			RevertingTxHashes: bundle.RevertingTxHashes,
-			Builders:          bundle.Builders,
-		})
-	}
-
-	// Send the collection of bundles to the server
-	err := stream.Send(&pbBundleMerger.BundlesRequest{
-		Bundles: grpcBundles,
-	})
-	if err != nil {
-		return err
-	}
-
-	return err
-}
-
-func processBundleCollectionResponse(txPool *TxBundlePool, stream pbBundleMerger.BundleService_StreamBundleCollectionsClient) error {
-	for {
-		// Receive the response from the server
-		res, err := stream.Recv()
-		if err == io.EOF {
-			// No more responses from the server
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-
-		// Process each bundle's response
-		for _, bundleRes := range res.BundleResponses {
-			if bundleRes.Success {
-				err := txPool.cancelBundleByUuid(bundleRes.ReplacementUuid)
-				if err != nil {
-					return err
-				}
-				log.Printf("Bundle %s processed successfully: %s\n", bundleRes.ReplacementUuid, bundleRes.Status)
-			} else {
-				log.Printf("Bundle %s failed: %s\n", bundleRes.ReplacementUuid, bundleRes.Status)
+func processBundleCollectionResponse(txPool *TxBundlePool, res *pbBundleMerger.BundlesResponse) error {
+	// Process each bundle's response
+	for _, bundleRes := range res.BundleResponses {
+		if bundleRes.Success {
+			err := txPool.cancelBundleByUuid(bundleRes.ReplacementUuid)
+			if err != nil {
+				return err
 			}
+			log.Printf("Bundle %s processed successfully: %s\n", bundleRes.ReplacementUuid, bundleRes.Status)
+		} else {
+			log.Printf("Bundle %s failed: %s\n", bundleRes.ReplacementUuid, bundleRes.Status)
 		}
 	}
+
+	return nil
 }
 
 func serializeTransactions(transactions []*types.Transaction) []*pbBundleMerger.BundleTransaction {
@@ -104,55 +69,71 @@ func serializeTransactions(transactions []*types.Transaction) []*pbBundleMerger.
 	return serialized
 }
 
+func convertToGRPCBundles(bundles []*TxPoolBundle) []*pbBundleMerger.Bundle {
+	var grpcBundles []*pbBundleMerger.Bundle
+	for _, bundle := range bundles {
+		grpcBundles = append(grpcBundles, &pbBundleMerger.Bundle{
+			Transactions:      serializeTransactions(bundle.Txs),
+			ReplacementUuid:   bundle.ReplacementUuid,
+			BlockNumber:       bundle.BlockNumber,
+			MinTimestamp:      bundle.MinTimestamp,
+			MaxTimestamp:      bundle.MaxTimestamp,
+			RevertingTxHashes: bundle.RevertingTxHashes,
+			Builders:          bundle.Builders,
+		})
+	}
+	return grpcBundles
+}
+
+func sendBundles(client pbBundleMerger.BundleServiceClient, txPool *TxBundlePool, bundleLimit int) {
+	// Create a context with a timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Retrieve a batch of bundles ready for processing
+	bundles := txPool.getBundlesForProcessing(bundleLimit, false)
+	if len(bundles) == 0 {
+		return // No bundles to process, skip this iteration
+	}
+
+	req := &pbBundleMerger.BundlesRequest{
+		Bundles: convertToGRPCBundles(bundles),
+	}
+
+	// Send the request and receive the response
+	resp, err := client.SendBundleCollections(ctx, req)
+	if err != nil {
+		log.Fatalf("Failed to send bundles: %v", err)
+	}
+
+	// Process the response
+	for i, bundleResp := range resp.BundleResponses {
+		log.Printf("Bundle %d: ReplacementUuid: %s, Status: %s, Success: %v",
+			i+1, bundleResp.ReplacementUuid, bundleResp.Status, bundleResp.Success)
+	}
+
+	err = processBundleCollectionResponse(txPool, resp)
+	if err != nil {
+		log.Printf("Error processing responses: %v\n", err)
+	}
+
+	log.Printf("%d bundles sent via gRPC\n", len(bundles))
+}
+
 func startPeriodicBundleSender(txPool *TxBundlePool, interval time.Duration, bundleLimit int, grpcURL string) {
-	go func() {
-		// Attempt to connect to the gRPC server
-		conn, err := connectToGRPCServer(grpcURL)
-		if err != nil {
-			log.Fatalf("Failed to connect to %s: %v", grpcURL, err)
-		}
-		defer conn.Close()
+	// Attempt to connect to the gRPC server
+	conn, err := connectToGRPCServer(grpcURL)
+	if err != nil {
+		log.Fatalf("Failed to connect to %s: %v", grpcURL, err)
+	}
+	defer conn.Close()
 
-		client := pbBundleMerger.NewBundleServiceClient(conn)
+	client := pbBundleMerger.NewBundleServiceClient(conn)
 
-		for {
-			// Open the gRPC stream, with retry logic if the stream fails
-			stream, err := client.StreamBundleCollections(context.Background())
-			if err != nil {
-				log.Printf("Failed to open stream: %v\n", err)
-				time.Sleep(5 * time.Second) // Wait before retrying
-				continue
-			}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
 
-			// Start a goroutine to process server responses
-			go func() {
-				err := processBundleCollectionResponse(txPool, stream)
-				if err != nil {
-					log.Printf("Error processing responses: %v\n", err)
-				}
-			}()
-
-			for {
-				time.Sleep(interval)
-
-				// Retrieve a batch of bundles ready for processing
-				bundles := txPool.getBundlesForProcessing(bundleLimit, false)
-				if len(bundles) == 0 {
-					continue // No bundles to process, skip this iteration
-				}
-
-				// Send the bundles via gRPC stream
-				err := streamBundleCollections(bundles, stream)
-				if err != nil {
-					log.Printf("Error sending bundles via gRPC: %v\n", err)
-					break // Exit the loop and attempt to reconnect
-				}
-
-				log.Printf("%d bundles sent via gRPC\n", len(bundles))
-			}
-
-			// Close the stream if it fails
-			stream.CloseSend()
-		}
-	}()
+	for range ticker.C {
+		sendBundles(client, txPool, bundleLimit)
+	}
 }

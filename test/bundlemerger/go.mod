@@ -1,6 +1,6 @@
 module bundlemerger
 
-go 1.23.2
+go 1.22.5
 
 require (
 	github.com/prof-project/prof-grpc/go v0.0.0-00010101000000-000000000000
@@ -15,4 +15,4 @@ require (
 	google.golang.org/protobuf v1.35.1 // indirect
 )
 
-replace github.com/prof-project/prof-grpc/go => ./../../app/lib/prof-grpc/go
+replace github.com/prof-project/prof-grpc/go => ./lib/prof-grpc/go
