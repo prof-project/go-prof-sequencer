@@ -50,7 +50,7 @@ func main() {
 
 // Start a simple HTTP server for health checks
 func startHealthCheck() {
-	http.HandleFunc("/sequencer-testserver/health", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/sequencer/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("ok"))
 	})
