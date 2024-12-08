@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 
 	pbBundleMerger "github.com/prof-project/prof-grpc/go/profpb"
 )
@@ -24,6 +25,9 @@ func main() {
 	}
 	s := grpc.NewServer()
 	pbBundleMerger.RegisterBundleServiceServer(s, &server{})
+
+	// Register reflection service on gRPC server.
+	reflection.Register(s)
 
 	log.Println("gRPC server running on port 50051...")
 
