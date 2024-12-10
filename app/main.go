@@ -10,12 +10,14 @@ import (
 )
 
 func main() {
-	// Add command-line flag for gRPC URL
+	// Add command-line flags for gRPC URL and useTLS
 	grpcURL := flag.String("grpc-url", "127.0.0.1:50051", "URL for gRPC connection to bundle merger")
+	useTLS := flag.Bool("use-tls", false, "Use TLS for gRPC connection")
 	flag.Parse()
 
-	// Log the gRPC URL being used
+	// Log the gRPC URL and useTLS flag being used
 	log.Printf("Using gRPC URL: %s", *grpcURL)
+	log.Printf("Using TLS: %v", *useTLS)
 
 	txPool := &TxBundlePool{
 		bundles:    []*TxPoolBundle{},
@@ -31,7 +33,7 @@ func main() {
 	txPool.startCleanupJob(5 * time.Second)
 
 	// Start the periodic bundle sender
-	go startPeriodicBundleSender(txPool, 5*time.Second, 1, *grpcURL)
+	go startPeriodicBundleSender(txPool, 5*time.Second, 10, *grpcURL, *useTLS)
 
 	// Create a new Gin router
 	r := gin.New()

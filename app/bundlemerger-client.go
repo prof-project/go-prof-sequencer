@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"log"
 	"time"
@@ -11,10 +12,12 @@ import (
 	pbBundleMerger "github.com/prof-project/prof-grpc/go/profpb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-func connectToGRPCServer(grpcURL string) (*grpc.ClientConn, error) {
+// connectToGRPCServer connects to a gRPC server with optional TLS.
+func connectToGRPCServer(grpcURL string, useTLS bool) (*grpc.ClientConn, error) {
 	log.Printf("Attempting to connect to gRPC server at %s...", grpcURL)
 
 	// Define custom backoff settings for reconnection attempts
@@ -24,13 +27,26 @@ func connectToGRPCServer(grpcURL string) (*grpc.ClientConn, error) {
 		MaxDelay:   120 * time.Second, // Maximum backoff delay
 	}
 
-	conn, err := grpc.Dial(grpcURL,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithConnectParams(grpc.ConnectParams{
-			Backoff:           backoffConfig,
-			MinConnectTimeout: 5 * time.Second,
-		}),
-	)
+	var opts []grpc.DialOption
+
+	if useTLS {
+		// Create a tls.Config with InsecureSkipVerify set to true
+		tlsConfig := &tls.Config{
+			InsecureSkipVerify: true,
+		}
+		creds := credentials.NewTLS(tlsConfig)
+		opts = append(opts, grpc.WithTransportCredentials(creds))
+	} else {
+		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	}
+
+	opts = append(opts, grpc.WithConnectParams(grpc.ConnectParams{
+		Backoff:           backoffConfig,
+		MinConnectTimeout: 5 * time.Second,
+	}))
+
+	// Connect to the server
+	conn, err := grpc.NewClient(grpcURL, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("connection failed: %v", err)
 	}
@@ -120,9 +136,9 @@ func sendBundles(client pbBundleMerger.BundleServiceClient, txPool *TxBundlePool
 	log.Printf("%d bundles sent via gRPC\n", len(bundles))
 }
 
-func startPeriodicBundleSender(txPool *TxBundlePool, interval time.Duration, bundleLimit int, grpcURL string) {
+func startPeriodicBundleSender(txPool *TxBundlePool, interval time.Duration, bundleLimit int, grpcURL string, useTLS bool) {
 	// Attempt to connect to the gRPC server
-	conn, err := connectToGRPCServer(grpcURL)
+	conn, err := connectToGRPCServer(grpcURL, useTLS)
 	if err != nil {
 		log.Fatalf("Failed to connect to %s: %v", grpcURL, err)
 	}
