@@ -5,6 +5,7 @@ package main
 import (
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -29,12 +30,12 @@ type User struct {
 
 // jwtKey is the key used to create the JWT signature
 // ToDo: replace with a proper key for production
-var jwtKey = []byte("my_secret_key")
+var jwtKey = []byte(hashPassword(getSecret(os.Getenv("SEQUENCER_JWT_KEY"), "defaultJwtKey")))
 
 // Create a map to store users with hashed passwords
 var users = map[string]User{
-	"admin": {Username: "admin", Password: hashPassword("secret"), Roles: []string{"admin", "user"}},
-	"user1": {Username: "user1", Password: hashPassword("password1"), Roles: []string{"user"}},
+	"admin": {Username: "admin", Password: hashPassword(getSecret(os.Getenv("SEQUENCER_DEFAULT_ADMIN_PASSWORD_FILE"), "defaultAdminPassword")), Roles: []string{"admin"}},
+	"user1": {Username: "user1", Password: hashPassword(getSecret(os.Getenv("SEQUENCER_DEFAULT_USER1_PASSWORD_FILE"), "defaultUser1Password")), Roles: []string{"user"}},
 }
 
 // hashPassword hashes a plain text password using bcrypt

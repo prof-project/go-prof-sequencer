@@ -9,7 +9,7 @@ ARG BUILD_TAGS
 RUN --mount=target=. \
     --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg \
-     GOOS=$TARGETOS GOARCH=$TARGETARCH CGO_ENABLED=0 go build -tags "$BUILD_TAGS" -o /go/bin/servicebinary
+    GOOS=$TARGETOS GOARCH=$TARGETARCH CGO_ENABLED=0 go build -tags "$BUILD_TAGS" -o /go/bin/servicebinary
 
 FROM alpine
 
@@ -20,5 +20,10 @@ COPY --from=builder /go/bin/servicebinary /servicebinary
 
 # Expose the port your service listens on
 EXPOSE 80
+
+# Read secrets from files
+ENV SEQUENCER_DEFAULT_ADMIN_PASSWORD_FILE=/run/secrets/sequencer_default_admin_password
+ENV SEQUENCER_DEFAULT_USER1_PASSWORD_FILE=/run/secrets/sequencer_default_user1_password
+ENV SEQUENCER_JWT_KEY_FILE=/run/secrets/sequencer_jwt_key
 
 ENTRYPOINT ["/servicebinary"]
