@@ -30,7 +30,7 @@ type User struct {
 
 // jwtKey is the key used to create the JWT signature
 // ToDo: replace with a proper key for production
-var jwtKey = []byte(hashPassword(getSecret(os.Getenv("SEQUENCER_JWT_KEY"), "defaultJwtKey")))
+var jwtKey = []byte(getSecret(os.Getenv("SEQUENCER_JWT_KEY"), "defaultJwtKey"))
 
 // Create a map to store users with hashed passwords
 var users = map[string]User{
