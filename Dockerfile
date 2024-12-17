@@ -11,6 +11,12 @@ RUN --mount=target=. \
     --mount=type=cache,target=/go/pkg \
     GOOS=$TARGETOS GOARCH=$TARGETARCH CGO_ENABLED=0 go build -tags "$BUILD_TAGS" -o /go/bin/servicebinary
 
+# Install upx
+RUN apk add --no-cache upx
+
+# Compress the compiled binary
+RUN upx -q -9 /go/bin/servicebinary
+
 FROM alpine
 
 # Install curl
