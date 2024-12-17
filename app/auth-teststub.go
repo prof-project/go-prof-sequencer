@@ -1,5 +1,6 @@
 //go:build noauth
 
+// Package main implements the sequencer
 package main
 
 import "github.com/gin-gonic/gin"
@@ -12,7 +13,7 @@ func jwtLoginHandler(c *gin.Context) {
 }
 
 // jwtAuthMiddleware is a no-op middleware for disabling authentication
-func jwtAuthMiddleware(requiredRoles []string) gin.HandlerFunc {
+func jwtAuthMiddleware(_ []string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Set("username", "testuser")
 		c.Next()

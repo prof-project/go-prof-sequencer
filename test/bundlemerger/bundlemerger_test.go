@@ -1,3 +1,4 @@
+// Package main provides a test implementation for the prof bundle-merger.
 package main
 
 import (
@@ -29,7 +30,7 @@ func init() {
 	}()
 }
 
-func bufDialer(context.Context, string) (net.Conn, error) {
+func bufDialer(_ context.Context, _ string) (net.Conn, error) {
 	return lis.Dial()
 }
 
@@ -40,7 +41,7 @@ func TestHealthCheckEndpoint(t *testing.T) {
 	}
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("ok"))
 	})

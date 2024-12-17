@@ -1,3 +1,4 @@
+// Package main implements the sequencer
 package main
 
 import (
@@ -11,6 +12,7 @@ import (
 	"github.com/google/uuid"
 )
 
+// SendBundleRequest represents a request to send a bundle.
 type SendBundleRequest struct {
 	JSONRPC string             `json:"jsonrpc"` // JSON-RPC version,
 	ID      int                `json:"id"`      // ID of the request
@@ -18,13 +20,14 @@ type SendBundleRequest struct {
 	Params  []SendBundleParams `json:"params"`  // Array containing bundle params objects
 }
 
+// SendBundleParams represents parameters for sending a bundle.
 type SendBundleParams struct {
 	Txs               []string `json:"txs"`                         // Array of signed transactions (hex strings)
 	BlockNumber       string   `json:"blockNumber"`                 // Hex-encoded block number
 	MinTimestamp      int64    `json:"minTimestamp,omitempty"`      // Optional minimum timestamp
 	MaxTimestamp      int64    `json:"maxTimestamp,omitempty"`      // Optional maximum timestamp
 	RevertingTxHashes []string `json:"revertingTxHashes,omitempty"` // Optional list of tx hashes allowed to revert
-	ReplacementUuid   string   `json:"replacementUuid,omitempty"`   // Optional replacement UUID
+	ReplacementUUID   string   `json:"replacementUuid,omitempty"`   // Optional replacement UUID
 	Builders          []string `json:"builders,omitempty"`          // Optional list of builder names
 }
 
@@ -62,11 +65,11 @@ func handleBundleRequest(txPool *TxBundlePool) gin.HandlerFunc {
 
 		// Process each bundle in the Params array
 		for _, params := range req.Params {
-			// If no ReplacementUuid is provided, generate one
-			if params.ReplacementUuid == "" {
-				newUuid := uuid.New().String()
-				log.Printf("Generated new UUID for bundle: %s\n", newUuid)
-				params.ReplacementUuid = newUuid
+			// If no ReplacementUUID is provided, generate one
+			if params.ReplacementUUID == "" {
+				newUUID := uuid.New().String()
+				log.Printf("Generated new UUID for bundle: %s\n", newUUID)
+				params.ReplacementUUID = newUUID
 			}
 
 			// Decode the hex-encoded transactions
@@ -125,8 +128,8 @@ func handleBundleRequest(txPool *TxBundlePool) gin.HandlerFunc {
 
 			// Ensure at least one valid transaction exists in the bundle
 			if len(validTxs) == 0 {
-				log.Printf("No valid transactions in the bundle for UUID: %s\n", params.ReplacementUuid)
-				failedBundles = append(failedBundles, params.ReplacementUuid)
+				log.Printf("No valid transactions in the bundle for UUID: %s\n", params.ReplacementUUID)
+				failedBundles = append(failedBundles, params.ReplacementUUID)
 				continue
 			}
 
@@ -137,26 +140,26 @@ func handleBundleRequest(txPool *TxBundlePool) gin.HandlerFunc {
 				MinTimestamp:      params.MinTimestamp,
 				MaxTimestamp:      params.MaxTimestamp,
 				RevertingTxHashes: params.RevertingTxHashes,
-				ReplacementUuid:   params.ReplacementUuid,
+				ReplacementUUID:   params.ReplacementUUID,
 				Builders:          params.Builders,
 			}
 
 			// Log details of each transaction in the bundle
 			for j, tx := range bundle.Txs {
-				log.Printf("Transaction %d: To: %!s(func() *common.Address=%p), Nonce: %d, Gas: %d, Value: %!s(func() *big.Int=%p)",
+				log.Printf("Transaction %d: To: %v, Nonce: %d, Gas: %d, Value: %v",
 					j+1, tx.To(), tx.Nonce(), tx.Gas(), tx.Value())
 			}
 
 			// Add the bundle to the transaction pool
 			err := txPool.addBundle(&bundle, false)
 			if err != nil {
-				log.Printf("Failed to add bundle with UUID %s to pool: %v\n", bundle.ReplacementUuid, err)
-				failedBundles = append(failedBundles, bundle.ReplacementUuid)
+				log.Printf("Failed to add bundle with UUID %s to pool: %v\n", bundle.ReplacementUUID, err)
+				failedBundles = append(failedBundles, bundle.ReplacementUUID)
 				continue
 			}
 
-			processedBundles = append(processedBundles, bundle.ReplacementUuid)
-			log.Printf("Bundle with UUID %s received and added to the pool", bundle.ReplacementUuid)
+			processedBundles = append(processedBundles, bundle.ReplacementUUID)
+			log.Printf("Bundle with UUID %s received and added to the pool", bundle.ReplacementUUID)
 		}
 
 		// Respond with the result
@@ -169,6 +172,7 @@ func handleBundleRequest(txPool *TxBundlePool) gin.HandlerFunc {
 	}
 }
 
+// CancelBundleRequest represents a request to cancel a bundle.
 type CancelBundleRequest struct {
 	JSONRPC string               `json:"jsonrpc"` // JSON-RPC version
 	ID      int                  `json:"id"`      // ID of the request
@@ -176,8 +180,9 @@ type CancelBundleRequest struct {
 	Params  []CancelBundleParams `json:"params"`  // Array containing CancelBundleParams objects
 }
 
+// CancelBundleParams represents parameters for canceling a bundle.
 type CancelBundleParams struct {
-	ReplacementUuid string `json:"replacementUuid"` // UUIDv4 to uniquely identify the bundle to cancel
+	ReplacementUUID string `json:"replacementUuid"` // UUIDv4 to uniquely identify the bundle to cancel
 }
 
 // Handle eth_cancelBundle requests
@@ -208,21 +213,21 @@ func handleCancelBundleRequest(txPool *TxBundlePool) gin.HandlerFunc {
 
 		// Process each bundle in the Params array
 		for _, param := range req.Params {
-			// Check if ReplacementUuid is provided
-			if param.ReplacementUuid == "" {
+			// Check if ReplacementUUID is provided
+			if param.ReplacementUUID == "" {
 				failedBundles = append(failedBundles, "missing UUID")
 				continue
 			}
 
-			// Attempt to cancel the bundle by replacementUuid
-			err := txPool.cancelBundleByUuid(param.ReplacementUuid)
+			// Attempt to cancel the bundle by replacementUUID
+			err := txPool.cancelBundleByUUID(param.ReplacementUUID)
 			if err != nil {
-				log.Printf("Failed to cancel bundle with UUID: %s, error: %v\n", param.ReplacementUuid, err)
-				failedBundles = append(failedBundles, param.ReplacementUuid)
+				log.Printf("Failed to cancel bundle with UUID: %s, error: %v\n", param.ReplacementUUID, err)
+				failedBundles = append(failedBundles, param.ReplacementUUID)
 				continue
 			}
 
-			canceledBundles = append(canceledBundles, param.ReplacementUuid)
+			canceledBundles = append(canceledBundles, param.ReplacementUUID)
 		}
 
 		// Create the response

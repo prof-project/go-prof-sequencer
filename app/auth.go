@@ -1,5 +1,6 @@
 //go:build !noauth
 
+// Package main implements the sequencer
 package main
 
 import (

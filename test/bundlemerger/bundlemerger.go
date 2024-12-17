@@ -1,3 +1,4 @@
+// Package main provides a test implementation for the prof bundle-merger.
 package main
 
 import (

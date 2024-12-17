@@ -1,3 +1,4 @@
+// Package main implements the sequencer
 package main
 
 import (
@@ -59,7 +60,7 @@ func processBundleCollectionResponse(txPool *TxBundlePool, res *pbBundleMerger.B
 	// Process each bundle's response
 	for _, bundleRes := range res.BundleResponses {
 		if bundleRes.Success {
-			err := txPool.cancelBundleByUuid(bundleRes.ReplacementUuid)
+			err := txPool.cancelBundleByUUID(bundleRes.ReplacementUuid)
 			if err != nil {
 				return err
 			}
@@ -90,7 +91,7 @@ func convertToGRPCBundles(bundles []*TxPoolBundle) []*pbBundleMerger.Bundle {
 	for _, bundle := range bundles {
 		grpcBundles = append(grpcBundles, &pbBundleMerger.Bundle{
 			Transactions:      serializeTransactions(bundle.Txs),
-			ReplacementUuid:   bundle.ReplacementUuid,
+			ReplacementUuid:   bundle.ReplacementUUID,
 			BlockNumber:       bundle.BlockNumber,
 			MinTimestamp:      bundle.MinTimestamp,
 			MaxTimestamp:      bundle.MaxTimestamp,

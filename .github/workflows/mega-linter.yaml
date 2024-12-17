@@ -24,8 +24,8 @@ jobs:
     permissions:
       # Give the default GITHUB_TOKEN write permission to commit and push, comment issues & post new PR
       contents: read
-      issues: read
-      pull-requests: read
+      issues: write
+      pull-requests: write
     steps:
       # Git Checkout
       - name: Checkout Code

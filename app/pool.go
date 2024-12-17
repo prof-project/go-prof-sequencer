@@ -1,3 +1,4 @@
+// Package main implements the sequencer
 package main
 
 import (
@@ -11,17 +12,19 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
+// TxPoolBundle represents a transaction pool bundle.
 type TxPoolBundle struct {
 	Txs               []*types.Transaction // Array of transactions
 	BlockNumber       string               // Hex-encoded block number
 	MinTimestamp      int64                // Optional minimum timestamp
 	MaxTimestamp      int64                // Optional maximum timestamp
 	RevertingTxHashes []string             // Optional list of tx hashes allowed to revert
-	ReplacementUuid   string               // Optional replacement UUID
+	ReplacementUUID   string               // Optional replacement UUID
 	Builders          []string             // Optional list of builder names
 	MarkedForDeletion bool                 // Flag for deletion from the TxBundlePool
 }
 
+// TxBundlePool represents a pool of transaction bundles.
 type TxBundlePool struct {
 	bundles    []*TxPoolBundle                 // Store bundles of individual transactions
 	bundleMap  map[string]*TxPoolBundle        // Use a map to track bundles by UUID
@@ -33,16 +36,16 @@ func (p *TxBundlePool) addBundle(bundle *TxPoolBundle, replace bool) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	// Check if a bundle with the same replacementUuid already exists
-	existingBundle, exists := p.bundleMap[bundle.ReplacementUuid]
+	// Check if a bundle with the same replacementUUID already exists
+	existingBundle, exists := p.bundleMap[bundle.ReplacementUUID]
 	if exists {
 		// Check if the existing bundle is marked for deletion
 		if existingBundle.MarkedForDeletion {
-			log.Printf("Existing bundle with UUID %s is marked for deletion, replacing with new bundle.", bundle.ReplacementUuid)
+			log.Printf("Existing bundle with UUID %s is marked for deletion, replacing with new bundle.", bundle.ReplacementUUID)
 
 			// Remove the existing bundle from the list
 			for i, b := range p.bundles {
-				if b.ReplacementUuid == existingBundle.ReplacementUuid {
+				if b.ReplacementUUID == existingBundle.ReplacementUUID {
 					p.bundles = append(p.bundles[:i], p.bundles[i+1:]...)
 					break
 				}
@@ -50,15 +53,15 @@ func (p *TxBundlePool) addBundle(bundle *TxPoolBundle, replace bool) error {
 		} else {
 			if !replace {
 				// If replace is false and the bundle exists (and isn't marked for deletion), return an error
-				return fmt.Errorf("bundle with UUID %s already exists", bundle.ReplacementUuid)
+				return fmt.Errorf("bundle with UUID %s already exists", bundle.ReplacementUUID)
 			}
 
 			// If replace is true and the existing bundle isn't marked for deletion, replace the existing bundle
-			log.Printf("Replacing existing bundle with UUID: %s", bundle.ReplacementUuid)
+			log.Printf("Replacing existing bundle with UUID: %s", bundle.ReplacementUUID)
 
 			// Remove the existing bundle from the list
 			for i, b := range p.bundles {
-				if b.ReplacementUuid == existingBundle.ReplacementUuid {
+				if b.ReplacementUUID == existingBundle.ReplacementUUID {
 					p.bundles = append(p.bundles[:i], p.bundles[i+1:]...)
 					break
 				}
@@ -67,7 +70,7 @@ func (p *TxBundlePool) addBundle(bundle *TxPoolBundle, replace bool) error {
 	}
 
 	// Add the new bundle to the map and the list
-	p.bundleMap[bundle.ReplacementUuid] = bundle
+	p.bundleMap[bundle.ReplacementUUID] = bundle
 	p.bundles = append(p.bundles, bundle)
 
 	// Sort the pool based on the custom sorting policy
@@ -160,7 +163,7 @@ func (p *TxBundlePool) markBundlesForDeletion(bundles []*TxPoolBundle) {
 	}
 }
 
-func (p *TxBundlePool) cancelBundleByUuid(uuid string) error {
+func (p *TxBundlePool) cancelBundleByUUID(uuid string) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -186,7 +189,7 @@ func (p *TxBundlePool) cleanupMarkedBundles() {
 		if !bundle.MarkedForDeletion {
 			newBundles = append(newBundles, bundle)
 		} else {
-			delete(p.bundleMap, bundle.ReplacementUuid) // Remove from map
+			delete(p.bundleMap, bundle.ReplacementUUID) // Remove from map
 		}
 	}
 	p.bundles = newBundles
