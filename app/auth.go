@@ -86,7 +86,7 @@ func jwtLoginHandler(c *gin.Context) {
 // helper functions
 // generateJWT generates a new JWT token
 func generateJWT(username string, roles []string) (string, error) {
-	expirationTime := time.Now().Add(60 * time.Minute)
+	expirationTime := time.Now().Add(7 * 24 * time.Hour)
 	claims := &Claims{
 		Username: username,
 		Roles:    roles,
