@@ -34,7 +34,7 @@ func main() {
 	txPool.startCleanupJob(5 * time.Second)
 
 	// Start the periodic bundle sender
-	go startPeriodicBundleSender(txPool, 5*time.Second, 10, *grpcURL, *useTLS)
+	go startPeriodicBundleSender(txPool, 1*time.Second, 100, *grpcURL, *useTLS)
 
 	// Create a new Gin router
 	r := gin.New()
