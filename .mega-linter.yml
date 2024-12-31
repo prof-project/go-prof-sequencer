@@ -11,7 +11,7 @@ DISABLE_ERRORS_LINTERS:
   - REPOSITORY_DEVSKIM
   - REPOSITORY_KICS
 
-GO_GOLANGCI_LINT_PRE_COMMANDS: [{ "command": "cd ./app", "continue_if_failed": false, "cwd": "workspace"}]
+GO_GOLANGCI_LINT_PRE_COMMANDS: [{"command": "cd ./app", "continue_if_failed": false, "cwd": "workspace"}]
 EMAIL_REPORTER: false
 FILEIO_REPORTER: false
 MARKDOWN_SUMMARY_REPORTER: true
