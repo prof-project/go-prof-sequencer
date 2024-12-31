@@ -13,11 +13,10 @@ RUN --mount=target=. \
 
 FROM alpine:3.21
 
-# Install curl (healthcheck)
-RUN apk add --no-cache curl
+# Install curl (healthcheck), create a user to run the service
+RUN apk add --no-cache curl && \
+    adduser -D -g '' appuser
 
-# Create a user to run the service
-RUN adduser -D -g '' appuser
 USER appuser
 
 COPY --from=builder /go/bin/servicebinary /servicebinary

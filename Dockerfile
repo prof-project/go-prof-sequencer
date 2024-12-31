@@ -16,11 +16,10 @@ RUN apk add --no-cache upx && upx -q -9 /go/bin/servicebinary
 
 FROM alpine:3.21
 
-# Install curl (healthcheck)
-RUN apk add --no-cache curl
+# Install curl (healthcheck), create a user to run the service
+RUN apk add --no-cache curl && \
+    adduser -D -g '' appuser
 
-# Create a user to run the service
-RUN adduser -D -g '' appuser
 USER appuser
 
 COPY --from=builder /go/bin/servicebinary /servicebinary
@@ -29,10 +28,5 @@ COPY --from=builder /go/bin/servicebinary /servicebinary
 EXPOSE 80
 
 HEALTHCHECK CMD curl --fail http://localhost:80/sequencer/health || exit 1
-
-# Read secrets from files
-ENV SEQUENCER_DEFAULT_ADMIN_PASSWORD_FILE=/run/secrets/sequencer_default_admin_password
-ENV SEQUENCER_DEFAULT_USER1_PASSWORD_FILE=/run/secrets/sequencer_default_user1_password
-ENV SEQUENCER_JWT_KEY_FILE=/run/secrets/sequencer_jwt_key
 
 ENTRYPOINT ["/servicebinary"]

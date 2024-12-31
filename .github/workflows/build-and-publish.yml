@@ -9,6 +9,8 @@ on:
     branches:
       - main
 
+permissions: read-all 
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
