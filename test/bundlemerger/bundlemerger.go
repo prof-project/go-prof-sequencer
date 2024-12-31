@@ -51,7 +51,7 @@ func main() {
 
 // Start a simple HTTP server for health checks
 func startHealthCheck() {
-	http.HandleFunc("/sequencer-testserver/health", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/sequencer-testserver/health", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("ok"))
 	})
@@ -62,7 +62,7 @@ func startHealthCheck() {
 }
 
 // Implement the SendBundleCollections rpc of the BundleService service
-func (s *server) SendBundleCollections(ctx context.Context, req *pbBundleMerger.BundlesRequest) (*pbBundleMerger.BundlesResponse, error) {
+func (s *server) SendBundleCollections(_ context.Context, req *pbBundleMerger.BundlesRequest) (*pbBundleMerger.BundlesResponse, error) {
 	log.Printf("Received %d bundles", len(req.Bundles))
 
 	// Prepare to collect responses for each bundle

@@ -22,7 +22,7 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
-// Define a User struct
+// User defines the user structure
 type User struct {
 	Username string
 	Password string
