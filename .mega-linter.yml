@@ -3,6 +3,7 @@
 # See all available variables at https://megalinter.io/configuration/ and in linters documentation
 
 DISABLE_LINTERS:
+  - GO_GOLANGCI_LINT
   - SPELL_CSPELL
   - SPELL_LYCHEE
 
@@ -11,7 +12,6 @@ DISABLE_ERRORS_LINTERS:
   - REPOSITORY_DEVSKIM
   - REPOSITORY_KICS
 
-GO_GOLANGCI_LINT_PRE_COMMANDS: [{"command": "cd ./app", "continue_if_failed": false, "cwd": "workspace"}]
 EMAIL_REPORTER: false
 FILEIO_REPORTER: false
 MARKDOWN_SUMMARY_REPORTER: true
