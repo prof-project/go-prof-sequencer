@@ -17,7 +17,7 @@ RUN apk add --no-cache upx
 # Compress the compiled binary
 RUN upx -q -9 /go/bin/servicebinary
 
-FROM alpine:latest
+FROM alpine:3.21
 
 # Install curl
 RUN apk add --no-cache curl

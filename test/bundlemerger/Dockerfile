@@ -11,7 +11,7 @@ RUN --mount=target=. \
     --mount=type=cache,target=/go/pkg \
      GOOS=$TARGETOS GOARCH=$TARGETARCH CGO_ENABLED=0 go build -tags "$BUILD_TAGS" -o /go/bin/servicebinary
 
-FROM alpine
+FROM alpine:3.21
 
 # Install curl
 RUN apk add --no-cache curl
