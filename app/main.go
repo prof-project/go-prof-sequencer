@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/natefinch/lumberjack"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -24,27 +25,48 @@ import (
 )
 
 func main() {
-	// Set up logging to a file so Promtail can read it.
-	if err := os.MkdirAll("/app/logs", 0755); err != nil {
-		log.Fatal().Err(err).Msg("Failed to create log directory")
-	}
-	logFile, err := os.OpenFile("/app/logs/app.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	// Add command-line flags for log level, Prometheus metrics, and logging mode
+	logLevel := flag.String("log-level", "info", "Log level (debug, info, warn, error, fatal, panic)")
+	enableMetrics := flag.Bool("enable-metrics", false, "Enable Prometheus metrics endpoint")
+	logToFile := flag.Bool("log-to-file", true, "Log to file and stdout (true) or only stdout (false)")
+	// Add command-line flags for gRPC URL and useTLS
+	grpcURL := flag.String("grpc-url", "127.0.0.1:50051", "URL for gRPC connection to bundle merger")
+	useTLS := flag.Bool("use-tls", false, "Use TLS for gRPC connection")
+	flag.Parse()
+
+	// Set log level
+	level, err := zerolog.ParseLevel(*logLevel)
 	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to open log file")
+		log.Fatal().Err(err).Msg("Invalid log level")
 	}
-	defer func() {
-		if err := logFile.Close(); err != nil {
-			log.Error().Err(err).Msg("Failed to close log file")
+	zerolog.SetGlobalLevel(level)
+
+	// Set up logging to a file with rotation if enabled
+	var logWriters []io.Writer
+	if *logToFile {
+		logFile := &lumberjack.Logger{
+			Filename:   "/app/logs/app.log",
+			MaxSize:    5, // megabytes
+			MaxBackups: 3,
+			MaxAge:     28,    // days
+			Compress:   false, // disabled by default
 		}
-	}()
+		defer func() {
+			if err := logFile.Close(); err != nil {
+				log.Error().Err(err).Msg("Failed to close log file")
+			}
+		}()
+		logWriters = append(logWriters, logFile)
+	}
+	logWriters = append(logWriters, os.Stdout)
 
-	// Initialize Zerolog to write to both console and log file
+	// Initialize Zerolog to write to the configured outputs
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
-	log.Logger = zerolog.New(io.MultiWriter(logFile, os.Stdout)).With().Timestamp().Logger()
+	log.Logger = zerolog.New(io.MultiWriter(logWriters...)).With().Timestamp().Logger()
 
-	// Make Gin write logs to file and console
-	gin.DefaultWriter = io.MultiWriter(logFile, os.Stdout)
-	gin.DefaultErrorWriter = io.MultiWriter(logFile, os.Stderr)
+	// Make Gin write logs to the configured outputs
+	gin.DefaultWriter = io.MultiWriter(logWriters...)
+	gin.DefaultErrorWriter = io.MultiWriter(logWriters...)
 
 	log.Info().Msg("Starting prof-sequencer application...")
 
@@ -66,11 +88,6 @@ func main() {
 	defer func() {
 		_ = tp.Shutdown(ctx)
 	}()
-
-	// Add command-line flags for gRPC URL and useTLS
-	grpcURL := flag.String("grpc-url", "127.0.0.1:50051", "URL for gRPC connection to bundle merger")
-	useTLS := flag.Bool("use-tls", false, "Use TLS for gRPC connection")
-	flag.Parse()
 
 	// Log the gRPC URL and useTLS flag being used
 	log.Info().Str("grpc_url", *grpcURL).Bool("use_tls", *useTLS).Msg("gRPC configuration")
@@ -122,16 +139,15 @@ func main() {
 		Handler: rMain,
 	}
 
-	// Create a new Gin router
-	rPrometheus := gin.New()
-
-	// Expose Prometheus metrics on `/metrics`. We wrap the standard promhttp.Handler.
-	rPrometheus.GET("/metrics", gin.WrapH(promhttp.Handler()))
-
-	// Start the Prometheus metrics server
-	metricsSrv := &http.Server{
-		Addr:    ":8080",
-		Handler: rPrometheus,
+	// Create a new Gin router for Prometheus metrics if enabled
+	var metricsSrv *http.Server
+	if *enableMetrics {
+		rPrometheus := gin.New()
+		rPrometheus.GET("/metrics", gin.WrapH(promhttp.Handler()))
+		metricsSrv = &http.Server{
+			Addr:    ":8080",
+			Handler: rPrometheus,
+		}
 	}
 
 	// Listen for signals to gracefully shut down
@@ -145,12 +161,14 @@ func main() {
 		}
 	}()
 
-	go func() {
-		log.Info().Msg("Starting Prometheus metrics server on :8080")
-		if err := metricsSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatal().Err(err).Msg("Metrics ListenAndServe error")
-		}
-	}()
+	if *enableMetrics {
+		go func() {
+			log.Info().Msg("Starting Prometheus metrics server on :8080")
+			if err := metricsSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				log.Fatal().Err(err).Msg("Metrics ListenAndServe error")
+			}
+		}()
+	}
 
 	<-quit
 	log.Info().Msg("Shutting down servers...")
@@ -160,8 +178,10 @@ func main() {
 	if err := srv.Shutdown(ctxShutDown); err != nil {
 		log.Fatal().Err(err).Msg("HTTP server forced to shutdown")
 	}
-	if err := metricsSrv.Shutdown(ctxShutDown); err != nil {
-		log.Fatal().Err(err).Msg("Metrics server forced to shutdown")
+	if *enableMetrics {
+		if err := metricsSrv.Shutdown(ctxShutDown); err != nil {
+			log.Fatal().Err(err).Msg("Metrics server forced to shutdown")
+		}
 	}
 
 	log.Info().Msg("Servers exited properly")
