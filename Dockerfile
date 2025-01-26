@@ -20,9 +20,6 @@ FROM alpine:3.21
 RUN apk add --no-cache curl && \
     adduser -D -g '' appuser
 
-# Create logs directory (same path as in main.go)
-RUN mkdir -p /app/logs
-
 USER appuser
 
 COPY --from=builder /go/bin/servicebinary /servicebinary
