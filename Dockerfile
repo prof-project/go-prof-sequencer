@@ -22,10 +22,16 @@ RUN apk add --no-cache curl && \
 
 USER appuser
 
+# Create logs directory (same path as in main.go)
+RUN mkdir -p /app/logs
+
 COPY --from=builder /go/bin/servicebinary /servicebinary
 
 # Expose the port the http service listens on
 EXPOSE 80
+
+# Expose the port for the Prometheus metrics
+EXPOSE 8080
 
 HEALTHCHECK CMD curl --fail http://localhost:80/sequencer/health || exit 1
 
