@@ -46,7 +46,7 @@ func main() {
 	gin.DefaultWriter = io.MultiWriter(logFile, os.Stdout)
 	gin.DefaultErrorWriter = io.MultiWriter(logFile, os.Stderr)
 
-	log.Info().Msg("Starting Gin application...")
+	log.Info().Msg("Starting prof-sequencer application...")
 
 	// Set up OpenTelemetry trace exporter (OTLP -> Tempo).
 	ctx := context.Background()
@@ -62,7 +62,7 @@ func main() {
 		trace.WithBatcher(traceExporter),
 		trace.WithResource(resource.NewWithAttributes(
 			semconv.SchemaURL,
-			semconv.ServiceNameKey.String("myginapp"),
+			semconv.ServiceNameKey.String("prof-sequencer"),
 		)),
 	)
 	otel.SetTracerProvider(tp)
@@ -95,26 +95,26 @@ func main() {
 	go startPeriodicBundleSender(txPool, 1*time.Second, 100, *grpcURL, *useTLS)
 
 	// Create a new Gin router
-	r := gin.New()
+	rMain := gin.New()
 
 	// Use the OTel Gin middleware
-	r.Use(otelgin.Middleware("prof-sequencer"))
+	rMain.Use(otelgin.Middleware("prof-sequencer"))
 
 	// Use the custom logger middleware to log all HTTP requests
-	r.Use(CustomLogger())
+	rMain.Use(CustomLogger())
 
 	// ToDo: define the trusted proxies in production
-	r.SetTrustedProxies(nil)
+	rMain.SetTrustedProxies(nil)
 
 	// Apply JWT authentication and rate limiting to protected routes
-	protected := r.Group("/sequencer", jwtAuthMiddleware([]string{"user"}), rateLimitMiddleware())
+	protected := rMain.Group("/sequencer", jwtAuthMiddleware([]string{"user"}), rateLimitMiddleware())
 	{
 		protected.POST("/eth_sendBundle", handleBundleRequest(txPool))
 		protected.POST("/eth_cancelBundle", handleCancelBundleRequest(txPool))
 	}
 
 	// Apply rate limiting to unprotected routes
-	unprotected := r.Group("/sequencer", rateLimitMiddleware())
+	unprotected := rMain.Group("/sequencer", rateLimitMiddleware())
 	{
 		// Health check endpoint
 		unprotected.GET("/health", healthHandler)
@@ -123,13 +123,22 @@ func main() {
 		unprotected.POST("/login", jwtLoginHandler)
 	}
 
-	// Expose Prometheus metrics on `/metrics`. We wrap the standard promhttp.Handler.
-	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
-
 	// Start the HTTP server with graceful shutdown
 	srv := &http.Server{
+		Addr:    ":80",
+		Handler: rMain,
+	}
+
+	// Create a new Gin router
+	rPrometheus := gin.New()
+
+	// Expose Prometheus metrics on `/metrics`. We wrap the standard promhttp.Handler.
+	rPrometheus.GET("/metrics", gin.WrapH(promhttp.Handler()))
+
+	// Start the Prometheus metrics server
+	metricsSrv := &http.Server{
 		Addr:    ":8080",
-		Handler: r,
+		Handler: rPrometheus,
 	}
 
 	// Listen for signals to gracefully shut down
@@ -137,22 +146,32 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
 	go func() {
-		log.Info().Msg("Starting Gin server on :8080")
+		log.Info().Msg("Starting Gin server on :80")
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatal().Err(err).Msg("ListenAndServe error")
 		}
 	}()
 
+	go func() {
+		log.Info().Msg("Starting Prometheus metrics server on :8080")
+		if err := metricsSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatal().Err(err).Msg("Metrics ListenAndServe error")
+		}
+	}()
+
 	<-quit
-	log.Info().Msg("Shutting down Gin server...")
+	log.Info().Msg("Shutting down servers...")
 
 	ctxShutDown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(ctxShutDown); err != nil {
-		log.Fatal().Err(err).Msg("server forced to shutdown")
+		log.Fatal().Err(err).Msg("HTTP server forced to shutdown")
+	}
+	if err := metricsSrv.Shutdown(ctxShutDown); err != nil {
+		log.Fatal().Err(err).Msg("Metrics server forced to shutdown")
 	}
 
-	log.Info().Msg("Server exited properly")
+	log.Info().Msg("Servers exited properly")
 }
 
 // CustomLogger is a middleware function that logs detailed information about each request
