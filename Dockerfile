@@ -1,4 +1,4 @@
-FROM golang:1.22-alpine AS builder
+FROM golang:1.23-alpine AS builder
 
 # Set the working directory
 WORKDIR /go/src/build
@@ -20,10 +20,10 @@ FROM alpine:3.21
 RUN apk add --no-cache curl && \
     adduser -D -g '' appuser
 
-USER appuser
-
 # Create logs directory (same path as in main.go)
 RUN mkdir -p /app/logs
+
+USER appuser
 
 COPY --from=builder /go/bin/servicebinary /servicebinary
 
