@@ -5,12 +5,12 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
 	pbBundleMerger "github.com/prof-project/prof-grpc/go/profpb"
+	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/credentials"
@@ -19,7 +19,7 @@ import (
 
 // connectToGRPCServer connects to a gRPC server with optional TLS.
 func connectToGRPCServer(grpcURL string, useTLS bool) (*grpc.ClientConn, error) {
-	log.Printf("Attempting to connect to gRPC server at %s...", grpcURL)
+	log.Info().Str("grpc_url", grpcURL).Msg("Attempting to connect to gRPC server")
 
 	// Define custom backoff settings for reconnection attempts
 	backoffConfig := backoff.Config{
@@ -47,12 +47,12 @@ func connectToGRPCServer(grpcURL string, useTLS bool) (*grpc.ClientConn, error) 
 	}))
 
 	// Connect to the server
-	conn, err := grpc.NewClient(grpcURL, opts...)
+	conn, err := grpc.Dial(grpcURL, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("connection failed: %v", err)
 	}
 
-	log.Printf("Connected to gRPC server at %s", grpcURL)
+	log.Info().Str("grpc_url", grpcURL).Msg("Connected to gRPC server")
 	return conn, nil
 }
 
@@ -64,9 +64,9 @@ func processBundleCollectionResponse(txPool *TxBundlePool, res *pbBundleMerger.B
 			if err != nil {
 				return err
 			}
-			log.Printf("Bundle %s processed successfully: %s\n", bundleRes.ReplacementUuid, bundleRes.Status)
+			log.Info().Str("uuid", bundleRes.ReplacementUuid).Str("status", bundleRes.Status).Msg("Bundle processed successfully")
 		} else {
-			log.Printf("Bundle %s failed: %s\n", bundleRes.ReplacementUuid, bundleRes.Status)
+			log.Error().Str("uuid", bundleRes.ReplacementUuid).Str("status", bundleRes.Status).Msg("Bundle processing failed")
 		}
 	}
 
@@ -78,7 +78,7 @@ func serializeTransactions(transactions []*types.Transaction) []*pbBundleMerger.
 	for _, tx := range transactions {
 		data, err := rlp.EncodeToBytes(tx)
 		if err != nil {
-			log.Printf("Failed to serialize transaction: %v\n", err)
+			log.Error().Err(err).Msg("Failed to serialize transaction")
 			continue
 		}
 		serialized = append(serialized, &pbBundleMerger.BundleTransaction{Data: data})
@@ -120,28 +120,32 @@ func sendBundles(client pbBundleMerger.BundleServiceClient, txPool *TxBundlePool
 	// Send the request and receive the response
 	resp, err := client.SendBundleCollections(ctx, req)
 	if err != nil {
-		log.Fatalf("Failed to send bundles: %v", err)
+		log.Fatal().Err(err).Msg("Failed to send bundles")
 	}
 
 	// Process the response
 	for i, bundleResp := range resp.BundleResponses {
-		log.Printf("Bundle %d: ReplacementUuid: %s, Status: %s, Success: %v",
-			i+1, bundleResp.ReplacementUuid, bundleResp.Status, bundleResp.Success)
+		log.Info().
+			Int("index", i+1).
+			Str("uuid", bundleResp.ReplacementUuid).
+			Str("status", bundleResp.Status).
+			Bool("success", bundleResp.Success).
+			Msg("Bundle response received")
 	}
 
 	err = processBundleCollectionResponse(txPool, resp)
 	if err != nil {
-		log.Printf("Error processing responses: %v\n", err)
+		log.Error().Err(err).Msg("Error processing responses")
 	}
 
-	log.Printf("%d bundles sent via gRPC\n", len(bundles))
+	log.Info().Int("bundles_sent", len(bundles)).Msg("Bundles sent via gRPC")
 }
 
 func startPeriodicBundleSender(txPool *TxBundlePool, interval time.Duration, bundleLimit int, grpcURL string, useTLS bool) {
 	// Attempt to connect to the gRPC server
 	conn, err := connectToGRPCServer(grpcURL, useTLS)
 	if err != nil {
-		log.Fatalf("Failed to connect to %s: %v", grpcURL, err)
+		log.Fatal().Err(err).Str("grpc_url", grpcURL).Msg("Failed to connect to gRPC server")
 	}
 	defer conn.Close()
 

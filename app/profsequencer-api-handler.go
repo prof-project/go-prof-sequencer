@@ -4,12 +4,12 @@ package main
 import (
 	"encoding/json"
 	"io"
-	"log"
 	"net/http"
 
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
 )
 
 // SendBundleRequest represents a request to send a bundle.
@@ -68,7 +68,7 @@ func handleBundleRequest(txPool *TxBundlePool) gin.HandlerFunc {
 			// If no ReplacementUUID is provided, generate one
 			if params.ReplacementUUID == "" {
 				newUUID := uuid.New().String()
-				log.Printf("Generated new UUID for bundle: %s\n", newUUID)
+				log.Info().Str("uuid", newUUID).Msg("Generated new UUID for bundle")
 				params.ReplacementUUID = newUUID
 			}
 
@@ -77,14 +77,14 @@ func handleBundleRequest(txPool *TxBundlePool) gin.HandlerFunc {
 			for _, txHex := range params.Txs {
 				txData, err := decodeHex(txHex)
 				if err != nil {
-					log.Printf("Failed to decode transaction hex: %v\n", err)
+					log.Error().Err(err).Msg("Failed to decode transaction hex")
 					continue
 				}
 
 				tx := new(types.Transaction)
 				err = tx.UnmarshalBinary(txData)
 				if err != nil {
-					log.Printf("Failed to unmarshal transaction: %v\n", err)
+					log.Error().Err(err).Msg("Failed to unmarshal transaction")
 					continue
 				}
 				// Optional logging
@@ -99,36 +99,34 @@ func handleBundleRequest(txPool *TxBundlePool) gin.HandlerFunc {
 					case types.DynamicFeeTxType:
 						signer = types.NewLondonSigner(tx.ChainId())
 					default:
-						log.Printf("Unsupported transaction type: %d\n", tx.Type())
+						log.Error().Int("type", int(tx.Type())).Msg("Unsupported transaction type")
 						continue
 					}
 
 					from, err := types.Sender(signer, tx)
 					if err != nil {
-						log.Printf("Failed to derive sender address: %v\n", err)
+						log.Error().Err(err).Msg("Failed to derive sender address")
 						continue
 					}
 
 					// Get the signature values
 					v, r, s := tx.RawSignatureValues()
 
-					log.Printf("Transaction details: %+v\n", tx)
-					log.Printf("Sender address: %s\n", from.Hex())
-					log.Printf("Signature values: v=%d, r=%x, s=%x\n", v, r, s)
+					log.Info().Interface("transaction", tx).Str("sender", from.Hex()).Msg("Transaction details")
+					log.Info().Int64("v", v.Int64()).Str("r", r.String()).Str("s", s.String()).Msg("Signature values")
 				}
 
 				if isValidTransaction(tx) {
 					validTxs = append(validTxs, tx)
-					log.Printf("Valid transaction: %+v\n", tx)
-					log.Printf("Transaction nonce: %d\n", tx.Nonce())
+					log.Info().Interface("transaction", tx).Uint64("nonce", tx.Nonce()).Msg("Valid transaction")
 				} else {
-					log.Printf("Skipping invalid transaction: %+v\n", tx)
+					log.Warn().Interface("transaction", tx).Msg("Skipping invalid transaction")
 				}
 			}
 
 			// Ensure at least one valid transaction exists in the bundle
 			if len(validTxs) == 0 {
-				log.Printf("No valid transactions in the bundle for UUID: %s\n", params.ReplacementUUID)
+				log.Warn().Str("uuid", params.ReplacementUUID).Msg("No valid transactions in the bundle")
 				failedBundles = append(failedBundles, params.ReplacementUUID)
 				continue
 			}
@@ -146,20 +144,25 @@ func handleBundleRequest(txPool *TxBundlePool) gin.HandlerFunc {
 
 			// Log details of each transaction in the bundle
 			for j, tx := range bundle.Txs {
-				log.Printf("Transaction %d: To: %v, Nonce: %d, Gas: %d, Value: %v",
-					j+1, tx.To(), tx.Nonce(), tx.Gas(), tx.Value())
+				log.Info().
+					Int("index", j+1).
+					Interface("to", tx.To()).
+					Uint64("nonce", tx.Nonce()).
+					Uint64("gas", tx.Gas()).
+					Interface("value", tx.Value()).
+					Msg("Transaction details")
 			}
 
 			// Add the bundle to the transaction pool
 			err := txPool.addBundle(&bundle, false)
 			if err != nil {
-				log.Printf("Failed to add bundle with UUID %s to pool: %v\n", bundle.ReplacementUUID, err)
+				log.Error().Str("uuid", bundle.ReplacementUUID).Err(err).Msg("Failed to add bundle to pool")
 				failedBundles = append(failedBundles, bundle.ReplacementUUID)
 				continue
 			}
 
 			processedBundles = append(processedBundles, bundle.ReplacementUUID)
-			log.Printf("Bundle with UUID %s received and added to the pool", bundle.ReplacementUUID)
+			log.Info().Str("uuid", bundle.ReplacementUUID).Msg("Bundle received and added to the pool")
 		}
 
 		// Respond with the result
@@ -222,7 +225,7 @@ func handleCancelBundleRequest(txPool *TxBundlePool) gin.HandlerFunc {
 			// Attempt to cancel the bundle by replacementUUID
 			err := txPool.cancelBundleByUUID(param.ReplacementUUID)
 			if err != nil {
-				log.Printf("Failed to cancel bundle with UUID: %s, error: %v\n", param.ReplacementUUID, err)
+				log.Error().Str("uuid", param.ReplacementUUID).Err(err).Msg("Failed to cancel bundle")
 				failedBundles = append(failedBundles, param.ReplacementUUID)
 				continue
 			}

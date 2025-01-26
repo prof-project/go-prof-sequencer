@@ -3,13 +3,13 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"sort"
 	"strconv"
 	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/rs/zerolog/log"
 )
 
 // TxPoolBundle represents a transaction pool bundle.
@@ -41,7 +41,7 @@ func (p *TxBundlePool) addBundle(bundle *TxPoolBundle, replace bool) error {
 	if exists {
 		// Check if the existing bundle is marked for deletion
 		if existingBundle.MarkedForDeletion {
-			log.Printf("Existing bundle with UUID %s is marked for deletion, replacing with new bundle.", bundle.ReplacementUUID)
+			log.Info().Str("uuid", bundle.ReplacementUUID).Msg("Existing bundle marked for deletion, replacing with new bundle")
 
 			// Remove the existing bundle from the list
 			for i, b := range p.bundles {
@@ -57,7 +57,7 @@ func (p *TxBundlePool) addBundle(bundle *TxPoolBundle, replace bool) error {
 			}
 
 			// If replace is true and the existing bundle isn't marked for deletion, replace the existing bundle
-			log.Printf("Replacing existing bundle with UUID: %s", bundle.ReplacementUUID)
+			log.Info().Str("uuid", bundle.ReplacementUUID).Msg("Replacing existing bundle")
 
 			// Remove the existing bundle from the list
 			for i, b := range p.bundles {
@@ -175,7 +175,7 @@ func (p *TxBundlePool) cancelBundleByUUID(uuid string) error {
 
 	// Mark the bundle for deletion
 	bundle.MarkedForDeletion = true
-	log.Printf("Bundle with UUID %s marked for deletion\n", uuid)
+	log.Info().Str("uuid", uuid).Msg("Bundle marked for deletion")
 
 	return nil
 }
@@ -227,7 +227,7 @@ func (p *TxBundlePool) startCleanupJob(interval time.Duration) {
 				endTime := time.Now() // Timestamp after cleanup
 
 				// Log the cleanup duration for better debugging and visibility
-				log.Printf("Cleanup job took %v", endTime.Sub(startTime))
+				log.Debug().Dur("duration", endTime.Sub(startTime)).Msg("Cleanup job completed")
 			}
 		}
 	}()

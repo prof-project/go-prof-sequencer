@@ -81,9 +81,8 @@ func main() {
 		customSort: sortByBlockNumber,
 	}
 
-	// Set the Gin to debug mode
-	// ToDo: change to release mode in production
-	gin.SetMode(gin.DebugMode)
+	// Set Gin to Release mode
+	gin.SetMode(gin.ReleaseMode)
 
 	// Start the cleanup job for the pool
 	txPool.startCleanupJob(5 * time.Second)
@@ -96,9 +95,6 @@ func main() {
 
 	// Use the OTel Gin middleware
 	rMain.Use(otelgin.Middleware("prof-sequencer"))
-
-	// Use the custom logger middleware to log all HTTP requests
-	rMain.Use(CustomLogger())
 
 	// ToDo: define the trusted proxies in production
 	rMain.SetTrustedProxies(nil)
@@ -169,21 +165,4 @@ func main() {
 	}
 
 	log.Info().Msg("Servers exited properly")
-}
-
-// CustomLogger is a middleware function that logs detailed information about each request
-func CustomLogger() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		start := time.Now()
-		c.Next()
-		duration := time.Since(start)
-
-		log.Info().
-			Str("client_ip", c.ClientIP()).
-			Str("method", c.Request.Method).
-			Str("path", c.Request.URL.Path).
-			Int("status", c.Writer.Status()).
-			Dur("latency", duration).
-			Msg("request details")
-	}
 }
