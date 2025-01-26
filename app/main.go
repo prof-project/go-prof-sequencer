@@ -50,10 +50,7 @@ func main() {
 
 	// Set up OpenTelemetry trace exporter (OTLP -> Tempo).
 	ctx := context.Background()
-	traceExporter, err := otlptracehttp.New(ctx,
-		otlptracehttp.WithEndpoint("tempo:14268"), // Adjust if your Tempo port differs
-		otlptracehttp.WithInsecure(),              // Usually no TLS in local Docker
-	)
+	traceExporter, err := otlptracehttp.New(ctx, otlptracehttp.WithEndpoint("tempo:4318"), otlptracehttp.WithInsecure())
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to create OTLP exporter")
 	}
