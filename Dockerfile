@@ -18,7 +18,9 @@ FROM alpine:3.21
 
 # Install curl (healthcheck), create a user to run the service
 RUN apk add --no-cache curl && \
-    adduser -D -g '' appuser
+    adduser -D -g '' appuser && \
+    mkdir -p /app/logs && \
+    chown -R appuser:appuser /app/logs
 
 USER appuser
 
