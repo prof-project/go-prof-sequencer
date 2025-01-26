@@ -25,10 +25,10 @@ import (
 )
 
 func main() {
-	// Add command-line flags for log level, Prometheus metrics, and logging mode
-	logLevel := flag.String("log-level", "info", "Log level (debug, info, warn, error, fatal, panic)")
+	// Add command-line flags for Prometheus metrics, log level and logging mode
 	enableMetrics := flag.Bool("enable-metrics", false, "Enable Prometheus metrics endpoint")
-	logToFile := flag.Bool("log-to-file", true, "Log to file and stdout (true) or only stdout (false)")
+	logLevel := flag.String("log-level", "info", "Log level (debug, info, warn, error, fatal, panic)")
+	logToFile := flag.Bool("log-to-file", false, "Log to file and stdout (true) or only stdout (false)")
 	// Add command-line flags for gRPC URL and useTLS
 	grpcURL := flag.String("grpc-url", "127.0.0.1:50051", "URL for gRPC connection to bundle merger")
 	useTLS := flag.Bool("use-tls", false, "Use TLS for gRPC connection")
