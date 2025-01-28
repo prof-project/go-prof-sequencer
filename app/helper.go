@@ -4,10 +4,6 @@ package main
 import (
 	"encoding/hex"
 	"os"
-	"strconv"
-	"time"
-
-	"github.com/gin-gonic/gin"
 )
 
 // Decode hex string utility
@@ -24,21 +20,4 @@ func getSecret(filePath string, defaultValue string) string {
 		return string(data)
 	}
 	return defaultValue
-}
-
-// PrometheusMiddleware is a Gin middleware for Prometheus metrics
-func PrometheusMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		start := time.Now()
-		c.Next()
-		duration := time.Since(start).Seconds()
-
-		path := c.FullPath()
-		if path == "" {
-			path = "unknown"
-		}
-
-		httpRequestsTotal.WithLabelValues(path, c.Request.Method, strconv.Itoa(c.Writer.Status())).Inc()
-		httpRequestDuration.WithLabelValues(path, c.Request.Method).Observe(duration)
-	}
 }

@@ -11,10 +11,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Depado/ginprom"
 	"github.com/gin-gonic/gin"
 	"github.com/natefinch/lumberjack"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
@@ -24,32 +23,6 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.12.0"
 )
-
-// Define Prometheus metrics
-var (
-	httpRequestsTotal = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "http_requests_total",
-			Help: "Total number of HTTP requests",
-		},
-		[]string{"path", "method", "status"},
-	)
-	httpRequestDuration = prometheus.NewHistogramVec(
-		prometheus.HistogramOpts{
-			Name:    "http_request_duration_seconds",
-			Help:    "Duration of HTTP requests in seconds",
-			Buckets: prometheus.DefBuckets,
-		},
-		[]string{"path", "method"},
-	)
-)
-
-func init() {
-	// Register metrics
-	profSequencerRegisterer := prometheus.WrapRegistererWithPrefix("prof_sequencer_", prometheus.DefaultRegisterer)
-	profSequencerRegisterer.MustRegister(httpRequestsTotal)
-	profSequencerRegisterer.MustRegister(httpRequestDuration)
-}
 
 func main() {
 	// Add command-line flags for Prometheus metrics, log level and logging mode
@@ -146,8 +119,18 @@ func main() {
 	// Use the OTel Gin middleware
 	rMain.Use(otelgin.Middleware("prof-sequencer"))
 
-	// Add Prometheus middleware
-	rMain.Use(PrometheusMiddleware())
+	if *enableMetrics {
+		// Create the ginprom middleware
+		prometheusMiddleware := ginprom.New(
+			ginprom.Engine(rMain),
+			ginprom.Namespace("prof_sequencer"),
+			ginprom.Subsystem("gin"),
+			ginprom.Path("/metrics"),
+		)
+
+		// Add Prometheus middleware
+		rMain.Use(prometheusMiddleware.Instrument())
+	}
 
 	// ToDo: define the trusted proxies in production
 	rMain.SetTrustedProxies(nil)
@@ -175,17 +158,6 @@ func main() {
 		Handler: rMain,
 	}
 
-	// Create a new Gin router for Prometheus metrics if enabled
-	var metricsSrv *http.Server
-	if *enableMetrics {
-		rPrometheus := gin.New()
-		rPrometheus.GET("/metrics", gin.WrapH(promhttp.Handler()))
-		metricsSrv = &http.Server{
-			Addr:    ":8080",
-			Handler: rPrometheus,
-		}
-	}
-
 	// Listen for signals to gracefully shut down
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
@@ -197,15 +169,6 @@ func main() {
 		}
 	}()
 
-	if *enableMetrics {
-		go func() {
-			log.Info().Msg("Starting Prometheus metrics server on :8080")
-			if err := metricsSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-				log.Fatal().Err(err).Msg("Metrics ListenAndServe error")
-			}
-		}()
-	}
-
 	<-quit
 	log.Info().Msg("Shutting down servers...")
 
@@ -213,11 +176,6 @@ func main() {
 	defer cancel()
 	if err := srv.Shutdown(ctxShutDown); err != nil {
 		log.Fatal().Err(err).Msg("HTTP server forced to shutdown")
-	}
-	if *enableMetrics {
-		if err := metricsSrv.Shutdown(ctxShutDown); err != nil {
-			log.Fatal().Err(err).Msg("Metrics server forced to shutdown")
-		}
 	}
 
 	log.Info().Msg("Servers exited properly")
