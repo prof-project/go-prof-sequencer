@@ -1,4 +1,4 @@
-FROM golang:1.22-alpine AS builder
+FROM golang:1.23-alpine AS builder
 
 # Set the working directory
 WORKDIR /go/src/build
@@ -18,7 +18,9 @@ FROM alpine:3.21
 
 # Install curl (healthcheck), create a user to run the service
 RUN apk add --no-cache curl && \
-    adduser -D -g '' appuser
+    adduser -D -g '' appuser && \
+    mkdir -p /app/logs && \
+    chown -R appuser:appuser /app/logs
 
 USER appuser
 
@@ -26,6 +28,9 @@ COPY --from=builder /go/bin/servicebinary /servicebinary
 
 # Expose the port the http service listens on
 EXPOSE 80
+
+# Expose the port for the Prometheus metrics
+EXPOSE 8080
 
 HEALTHCHECK CMD curl --fail http://localhost:80/sequencer/health || exit 1
 
