@@ -52,8 +52,9 @@ var (
 
 func init() {
 	// Register metrics
-	prometheus.MustRegister(processedBundlesCounter)
-	prometheus.MustRegister(processedTransactionsCounter)
+	profSequencerRegisterer := prometheus.WrapRegistererWithPrefix("prof_sequencer_", prometheus.DefaultRegisterer)
+	profSequencerRegisterer.MustRegister(processedBundlesCounter)
+	profSequencerRegisterer.MustRegister(processedTransactionsCounter)
 }
 
 func handleBundleRequest(txPool *TxBundlePool) gin.HandlerFunc {

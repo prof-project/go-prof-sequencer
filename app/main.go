@@ -46,8 +46,9 @@ var (
 
 func init() {
 	// Register metrics
-	prometheus.MustRegister(httpRequestsTotal)
-	prometheus.MustRegister(httpRequestDuration)
+	profSequencerRegisterer := prometheus.WrapRegistererWithPrefix("prof_sequencer_", prometheus.DefaultRegisterer)
+	profSequencerRegisterer.MustRegister(httpRequestsTotal)
+	profSequencerRegisterer.MustRegister(httpRequestDuration)
 }
 
 func main() {
