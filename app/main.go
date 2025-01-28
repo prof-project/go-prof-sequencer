@@ -71,6 +71,11 @@ func main() {
 	// Set up logging to a file with rotation if enabled
 	var logWriters []io.Writer
 	if *logToFile {
+		// Remove the existing log file if it exists
+		if err := os.Remove("/app/logs/app.log"); err != nil && !os.IsNotExist(err) {
+			log.Fatal().Err(err).Msg("Failed to remove existing log file")
+		}
+
 		logFile := &lumberjack.Logger{
 			Filename:   "/app/logs/app.log",
 			MaxSize:    5, // megabytes
