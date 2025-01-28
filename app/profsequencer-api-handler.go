@@ -59,7 +59,7 @@ func init() {
 	profSequencerRegisterer.MustRegister(processedTransactionsCounter)
 }
 
-func handleBundleRequest(txPool *TxBundlePool) gin.HandlerFunc {
+func handleEthSendBundle(txPool *TxBundlePool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Start a new span for the handleBundleRequest function
 		tracer := otel.Tracer("prof-sequencer")
@@ -93,15 +93,16 @@ func handleBundleRequest(txPool *TxBundlePool) gin.HandlerFunc {
 			return
 		}
 
-		response := bundleRequestProcessBundles(ctx, txPool, req)
+		// Process the bundles and return the response
+		response := processBundlesEthSendBundle(ctx, txPool, req)
 
 		c.JSON(http.StatusAccepted, response)
 	}
 }
 
-func bundleRequestProcessBundles(ctx context.Context, txPool *TxBundlePool, req SendBundleRequest) map[string]interface{} {
+func processBundlesEthSendBundle(ctx context.Context, txPool *TxBundlePool, req SendBundleRequest) map[string]interface{} {
 	tracer := otel.Tracer("prof-sequencer")
-	_, span := tracer.Start(ctx, "bundleRequestProcessBundles")
+	_, span := tracer.Start(ctx, "processBundlesEthSendBundle")
 	defer span.End()
 
 	var processedBundles []string
@@ -239,8 +240,13 @@ type CancelBundleParams struct {
 }
 
 // Handle eth_cancelBundle requests
-func handleCancelBundleRequest(txPool *TxBundlePool) gin.HandlerFunc {
+func handleEthCancelBundle(txPool *TxBundlePool) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Start a new span for the handleCancelBundleRequest function
+		tracer := otel.Tracer("prof-sequencer")
+		ctx, span := tracer.Start(c.Request.Context(), "handleCancelBundleRequest")
+		defer span.End()
+
 		var req CancelBundleRequest
 
 		// Parse the JSON body into the CancelBundleRequest struct
@@ -261,33 +267,9 @@ func handleCancelBundleRequest(txPool *TxBundlePool) gin.HandlerFunc {
 			return
 		}
 
-		var canceledBundles []string
+		// Process the bundles and return the response
 		var failedBundles []string
-
-		// Process each bundle in the Params array
-		for _, param := range req.Params {
-			// Check if ReplacementUUID is provided
-			if param.ReplacementUUID == "" {
-				failedBundles = append(failedBundles, "missing UUID")
-				continue
-			}
-
-			// Attempt to cancel the bundle by replacementUUID
-			err := txPool.cancelBundleByUUID(param.ReplacementUUID)
-			if err != nil {
-				log.Error().Str("uuid", param.ReplacementUUID).Err(err).Msg("Failed to cancel bundle")
-				failedBundles = append(failedBundles, param.ReplacementUUID)
-				continue
-			}
-
-			canceledBundles = append(canceledBundles, param.ReplacementUUID)
-		}
-
-		// Create the response
-		response := map[string]interface{}{
-			"jsonrpc": "2.0",
-			"id":      req.ID,
-		}
+		response := processBundlesEthCancelBundle(ctx, txPool, req, &failedBundles)
 
 		// Handle partial success or failure
 		if len(failedBundles) > 0 {
@@ -301,4 +283,35 @@ func handleCancelBundleRequest(txPool *TxBundlePool) gin.HandlerFunc {
 			c.JSON(http.StatusOK, response)
 		}
 	}
+}
+
+func processBundlesEthCancelBundle(ctx context.Context, txPool *TxBundlePool, req CancelBundleRequest, failedBundles *[]string) map[string]interface{} {
+	tracer := otel.Tracer("prof-sequencer")
+	_, span := tracer.Start(ctx, "processBundlesEthCancelBundle")
+	defer span.End()
+
+	// Process each bundle in the Params array
+	for _, param := range req.Params {
+		// Check if ReplacementUUID is provided
+		if param.ReplacementUUID == "" {
+			*failedBundles = append(*failedBundles, "missing UUID")
+			continue
+		}
+
+		// Attempt to cancel the bundle by replacementUUID
+		err := txPool.cancelBundleByUUID(param.ReplacementUUID)
+		if err != nil {
+			log.Error().Str("uuid", param.ReplacementUUID).Err(err).Msg("Failed to cancel bundle")
+			*failedBundles = append(*failedBundles, param.ReplacementUUID)
+			continue
+		}
+	}
+
+	// Create the response
+	response := map[string]interface{}{
+		"jsonrpc": "2.0",
+		"id":      req.ID,
+	}
+
+	return response
 }
