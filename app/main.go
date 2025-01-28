@@ -30,9 +30,11 @@ func main() {
 	logLevel := flag.String("log-level", "info", "Log level (debug, info, warn, error, fatal, panic)")
 	logToFile := flag.Bool("log-to-file", false, "Log to file and stdout (true) or only stdout (false)")
 
-	// Add command-line flags for gRPC URL and useTLS
+	// Add command-line flags for gRPC URL, useTLS and tracing URL
 	grpcURL := flag.String("grpc-url", "127.0.0.1:50051", "URL for gRPC connection to bundle merger")
 	useTLS := flag.Bool("use-tls", false, "Use TLS for gRPC connection")
+	tracingURL := flag.String("tracing-url", "", "URL for tracing endpoint (leave empty to disable tracing)")
+
 	flag.Parse()
 
 	// Set log level
@@ -76,25 +78,6 @@ func main() {
 
 	log.Info().Msg("Starting prof-sequencer application...")
 
-	// Set up OpenTelemetry trace exporter (OTLP -> Tempo).
-	ctx := context.Background()
-	traceExporter, err := otlptracehttp.New(ctx, otlptracehttp.WithEndpoint("tempo:4318"), otlptracehttp.WithInsecure())
-	if err != nil {
-		log.Fatal().Err(err).Msg("failed to create OTLP exporter")
-	}
-
-	tp := trace.NewTracerProvider(
-		trace.WithBatcher(traceExporter),
-		trace.WithResource(resource.NewWithAttributes(
-			semconv.SchemaURL,
-			semconv.ServiceNameKey.String("prof-sequencer"),
-		)),
-	)
-	otel.SetTracerProvider(tp)
-	defer func() {
-		_ = tp.Shutdown(ctx)
-	}()
-
 	// Log the gRPC URL and useTLS flag being used
 	log.Info().Str("grpc_url", *grpcURL).Bool("use_tls", *useTLS).Msg("gRPC configuration")
 
@@ -107,17 +90,35 @@ func main() {
 	// Set Gin to Release mode
 	gin.SetMode(gin.ReleaseMode)
 
-	// Start the cleanup job for the pool
-	txPool.startCleanupJob(5 * time.Second)
-
-	// Start the periodic bundle sender
-	go startPeriodicBundleSender(txPool, 1*time.Second, 100, *grpcURL, *useTLS)
-
 	// Create a new Gin router
 	rMain := gin.New()
 
-	// Use the OTel Gin middleware
-	rMain.Use(otelgin.Middleware("prof-sequencer"))
+	// Set up OpenTelemetry trace exporter (OTLP -> Tempo) if tracing URL is provided
+	if *tracingURL != "" {
+		ctx := context.Background()
+		traceExporter, err := otlptracehttp.New(ctx, otlptracehttp.WithEndpoint(*tracingURL), otlptracehttp.WithInsecure())
+		if err != nil {
+			log.Fatal().Err(err).Msg("failed to create OTLP exporter")
+		}
+
+		tp := trace.NewTracerProvider(
+			trace.WithBatcher(traceExporter),
+			trace.WithResource(resource.NewWithAttributes(
+				semconv.SchemaURL,
+				semconv.ServiceNameKey.String("prof-sequencer"),
+			)),
+		)
+		otel.SetTracerProvider(tp)
+		defer func() {
+			_ = tp.Shutdown(ctx)
+		}()
+		log.Info().Str("tracing_url", *tracingURL).Msg("Tracing enabled")
+
+		// Use the OTel Gin middleware
+		rMain.Use(otelgin.Middleware("prof-sequencer"))
+	} else {
+		log.Info().Msg("Tracing disabled")
+	}
 
 	if *enableMetrics {
 		// Create the ginprom middleware
@@ -152,16 +153,23 @@ func main() {
 		unprotected.POST("/login", jwtLoginHandler)
 	}
 
-	// Start the HTTP server with graceful shutdown
+	// Create an HTTP server with the Gin router
 	srv := &http.Server{
 		Addr:    ":80",
 		Handler: rMain,
 	}
 
+	// Start the cleanup job for the pool
+	txPool.startCleanupJob(5 * time.Second)
+
+	// Start the periodic bundle sender
+	go startPeriodicBundleSender(txPool, 1*time.Second, 100, *grpcURL, *useTLS)
+
 	// Listen for signals to gracefully shut down
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
+	// Start the HTTP server with graceful shutdown
 	go func() {
 		log.Info().Msg("Starting Gin server on :80")
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
