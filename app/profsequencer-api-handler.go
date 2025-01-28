@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog/log"
 )
 
@@ -29,6 +30,30 @@ type SendBundleParams struct {
 	RevertingTxHashes []string `json:"revertingTxHashes,omitempty"` // Optional list of tx hashes allowed to revert
 	ReplacementUUID   string   `json:"replacementUuid,omitempty"`   // Optional replacement UUID
 	Builders          []string `json:"builders,omitempty"`          // Optional list of builder names
+}
+
+// Define Prometheus metrics
+var (
+	processedBundlesCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "processed_bundles_total",
+			Help: "Total number of processed bundles",
+		},
+		[]string{"status"},
+	)
+	processedTransactionsCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "processed_transactions_total",
+			Help: "Total number of processed transactions",
+		},
+		[]string{"status"},
+	)
+)
+
+func init() {
+	// Register metrics
+	prometheus.MustRegister(processedBundlesCounter)
+	prometheus.MustRegister(processedTransactionsCounter)
 }
 
 func handleBundleRequest(txPool *TxBundlePool) gin.HandlerFunc {
@@ -78,6 +103,7 @@ func handleBundleRequest(txPool *TxBundlePool) gin.HandlerFunc {
 				txData, err := decodeHex(txHex)
 				if err != nil {
 					log.Error().Err(err).Msg("Failed to decode transaction hex")
+					processedTransactionsCounter.WithLabelValues("failed").Inc()
 					continue
 				}
 
@@ -85,6 +111,7 @@ func handleBundleRequest(txPool *TxBundlePool) gin.HandlerFunc {
 				err = tx.UnmarshalBinary(txData)
 				if err != nil {
 					log.Error().Err(err).Msg("Failed to unmarshal transaction")
+					processedTransactionsCounter.WithLabelValues("failed").Inc()
 					continue
 				}
 				// Optional logging
@@ -118,8 +145,10 @@ func handleBundleRequest(txPool *TxBundlePool) gin.HandlerFunc {
 
 				if isValidTransaction(tx) {
 					validTxs = append(validTxs, tx)
+					processedTransactionsCounter.WithLabelValues("success").Inc()
 					log.Info().Interface("transaction", tx).Uint64("nonce", tx.Nonce()).Msg("Valid transaction")
 				} else {
+					processedTransactionsCounter.WithLabelValues("failed").Inc()
 					log.Warn().Interface("transaction", tx).Msg("Skipping invalid transaction")
 				}
 			}
@@ -128,6 +157,7 @@ func handleBundleRequest(txPool *TxBundlePool) gin.HandlerFunc {
 			if len(validTxs) == 0 {
 				log.Warn().Str("uuid", params.ReplacementUUID).Msg("No valid transactions in the bundle")
 				failedBundles = append(failedBundles, params.ReplacementUUID)
+				processedBundlesCounter.WithLabelValues("failed").Inc()
 				continue
 			}
 
@@ -158,10 +188,12 @@ func handleBundleRequest(txPool *TxBundlePool) gin.HandlerFunc {
 			if err != nil {
 				log.Error().Str("uuid", bundle.ReplacementUUID).Err(err).Msg("Failed to add bundle to pool")
 				failedBundles = append(failedBundles, bundle.ReplacementUUID)
+				processedBundlesCounter.WithLabelValues("failed").Inc()
 				continue
 			}
 
 			processedBundles = append(processedBundles, bundle.ReplacementUUID)
+			processedBundlesCounter.WithLabelValues("success").Inc()
 			log.Info().Str("uuid", bundle.ReplacementUUID).Msg("Bundle received and added to the pool")
 		}
 
