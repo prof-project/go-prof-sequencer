@@ -33,3 +33,7 @@ cd ../app
 
 ## Metrics
 - Prometheus metrics can be enabled via the `--enable-metrics` flag.
+
+## Tracing
+- Open Telemetry Tracing can be enabled via command-line flags:
+  - `--tracing-url` (default: `""`, leave empty to disable tracing)
