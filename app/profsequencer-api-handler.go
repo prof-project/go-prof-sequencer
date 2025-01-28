@@ -2,6 +2,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog/log"
+	"go.opentelemetry.io/otel"
 )
 
 // SendBundleRequest represents a request to send a bundle.
@@ -59,6 +61,11 @@ func init() {
 
 func handleBundleRequest(txPool *TxBundlePool) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Start a new span for the handleBundleRequest function
+		tracer := otel.Tracer("prof-sequencer")
+		ctx, span := tracer.Start(c.Request.Context(), "handleBundleRequest")
+		defer span.End()
+
 		var req SendBundleRequest
 
 		// Read the raw request body
@@ -86,126 +93,136 @@ func handleBundleRequest(txPool *TxBundlePool) gin.HandlerFunc {
 			return
 		}
 
-		var processedBundles []string
-		var failedBundles []string
-
-		// Process each bundle in the Params array
-		for _, params := range req.Params {
-			// If no ReplacementUUID is provided, generate one
-			if params.ReplacementUUID == "" {
-				newUUID := uuid.New().String()
-				log.Info().Str("uuid", newUUID).Msg("Generated new UUID for bundle")
-				params.ReplacementUUID = newUUID
-			}
-
-			// Decode the hex-encoded transactions
-			var validTxs []*types.Transaction
-			for _, txHex := range params.Txs {
-				txData, err := decodeHex(txHex)
-				if err != nil {
-					log.Error().Err(err).Msg("Failed to decode transaction hex")
-					processedTransactionsCounter.WithLabelValues("failed").Inc()
-					continue
-				}
-
-				tx := new(types.Transaction)
-				err = tx.UnmarshalBinary(txData)
-				if err != nil {
-					log.Error().Err(err).Msg("Failed to unmarshal transaction")
-					processedTransactionsCounter.WithLabelValues("failed").Inc()
-					continue
-				}
-				// Optional logging
-				if false {
-					// Derive the sender address based on the transaction type
-					var signer types.Signer
-					switch tx.Type() {
-					case types.LegacyTxType:
-						signer = types.HomesteadSigner{}
-					case types.AccessListTxType:
-						signer = types.NewEIP2930Signer(tx.ChainId())
-					case types.DynamicFeeTxType:
-						signer = types.NewLondonSigner(tx.ChainId())
-					default:
-						log.Error().Int("type", int(tx.Type())).Msg("Unsupported transaction type")
-						continue
-					}
-
-					from, err := types.Sender(signer, tx)
-					if err != nil {
-						log.Error().Err(err).Msg("Failed to derive sender address")
-						continue
-					}
-
-					// Get the signature values
-					v, r, s := tx.RawSignatureValues()
-
-					log.Info().Interface("transaction", tx).Str("sender", from.Hex()).Msg("Transaction details")
-					log.Info().Int64("v", v.Int64()).Str("r", r.String()).Str("s", s.String()).Msg("Signature values")
-				}
-
-				if isValidTransaction(tx) {
-					validTxs = append(validTxs, tx)
-					processedTransactionsCounter.WithLabelValues("success").Inc()
-					log.Info().Interface("transaction", tx).Uint64("nonce", tx.Nonce()).Msg("Valid transaction")
-				} else {
-					processedTransactionsCounter.WithLabelValues("failed").Inc()
-					log.Warn().Interface("transaction", tx).Msg("Skipping invalid transaction")
-				}
-			}
-
-			// Ensure at least one valid transaction exists in the bundle
-			if len(validTxs) == 0 {
-				log.Warn().Str("uuid", params.ReplacementUUID).Msg("No valid transactions in the bundle")
-				failedBundles = append(failedBundles, params.ReplacementUUID)
-				processedBundlesCounter.WithLabelValues("failed").Inc()
-				continue
-			}
-
-			// Create the TxPoolBundle using the validated transactions
-			bundle := TxPoolBundle{
-				Txs:               validTxs,
-				BlockNumber:       params.BlockNumber,
-				MinTimestamp:      params.MinTimestamp,
-				MaxTimestamp:      params.MaxTimestamp,
-				RevertingTxHashes: params.RevertingTxHashes,
-				ReplacementUUID:   params.ReplacementUUID,
-				Builders:          params.Builders,
-			}
-
-			// Log details of each transaction in the bundle
-			for j, tx := range bundle.Txs {
-				log.Info().
-					Int("index", j+1).
-					Interface("to", tx.To()).
-					Uint64("nonce", tx.Nonce()).
-					Uint64("gas", tx.Gas()).
-					Interface("value", tx.Value()).
-					Msg("Transaction details")
-			}
-
-			// Add the bundle to the transaction pool
-			err := txPool.addBundle(&bundle, false)
-			if err != nil {
-				log.Error().Str("uuid", bundle.ReplacementUUID).Err(err).Msg("Failed to add bundle to pool")
-				failedBundles = append(failedBundles, bundle.ReplacementUUID)
-				processedBundlesCounter.WithLabelValues("failed").Inc()
-				continue
-			}
-
-			processedBundles = append(processedBundles, bundle.ReplacementUUID)
-			processedBundlesCounter.WithLabelValues("success").Inc()
-			log.Info().Str("uuid", bundle.ReplacementUUID).Msg("Bundle received and added to the pool")
-		}
-
-		// Respond with the result
-		response := map[string]interface{}{
-			"processedBundles": processedBundles,
-			"failedBundles":    failedBundles,
-		}
+		response := bundleRequestProcessBundles(ctx, txPool, req)
 
 		c.JSON(http.StatusAccepted, response)
 	}
+}
+
+func bundleRequestProcessBundles(ctx context.Context, txPool *TxBundlePool, req SendBundleRequest) map[string]interface{} {
+	tracer := otel.Tracer("prof-sequencer")
+	_, span := tracer.Start(ctx, "bundleRequestProcessBundles")
+	defer span.End()
+
+	var processedBundles []string
+	var failedBundles []string
+
+	// Process each bundle in the Params array
+	for _, params := range req.Params {
+		// If no ReplacementUUID is provided, generate one
+		if params.ReplacementUUID == "" {
+			newUUID := uuid.New().String()
+			log.Info().Str("uuid", newUUID).Msg("Generated new UUID for bundle")
+			params.ReplacementUUID = newUUID
+		}
+
+		// Decode the hex-encoded transactions
+		var validTxs []*types.Transaction
+		for _, txHex := range params.Txs {
+			txData, err := decodeHex(txHex)
+			if err != nil {
+				log.Error().Err(err).Msg("Failed to decode transaction hex")
+				processedTransactionsCounter.WithLabelValues("failed").Inc()
+				continue
+			}
+
+			tx := new(types.Transaction)
+			err = tx.UnmarshalBinary(txData)
+			if err != nil {
+				log.Error().Err(err).Msg("Failed to unmarshal transaction")
+				processedTransactionsCounter.WithLabelValues("failed").Inc()
+				continue
+			}
+			// Optional logging
+			if false {
+				// Derive the sender address based on the transaction type
+				var signer types.Signer
+				switch tx.Type() {
+				case types.LegacyTxType:
+					signer = types.HomesteadSigner{}
+				case types.AccessListTxType:
+					signer = types.NewEIP2930Signer(tx.ChainId())
+				case types.DynamicFeeTxType:
+					signer = types.NewLondonSigner(tx.ChainId())
+				default:
+					log.Error().Int("type", int(tx.Type())).Msg("Unsupported transaction type")
+					continue
+				}
+
+				from, err := types.Sender(signer, tx)
+				if err != nil {
+					log.Error().Err(err).Msg("Failed to derive sender address")
+					continue
+				}
+
+				// Get the signature values
+				v, r, s := tx.RawSignatureValues()
+
+				log.Info().Interface("transaction", tx).Str("sender", from.Hex()).Msg("Transaction details")
+				log.Info().Int64("v", v.Int64()).Str("r", r.String()).Str("s", s.String()).Msg("Signature values")
+			}
+
+			if isValidTransaction(tx) {
+				validTxs = append(validTxs, tx)
+				processedTransactionsCounter.WithLabelValues("success").Inc()
+				log.Info().Interface("transaction", tx).Uint64("nonce", tx.Nonce()).Msg("Valid transaction")
+			} else {
+				processedTransactionsCounter.WithLabelValues("failed").Inc()
+				log.Warn().Interface("transaction", tx).Msg("Skipping invalid transaction")
+			}
+		}
+
+		// Ensure at least one valid transaction exists in the bundle
+		if len(validTxs) == 0 {
+			log.Warn().Str("uuid", params.ReplacementUUID).Msg("No valid transactions in the bundle")
+			failedBundles = append(failedBundles, params.ReplacementUUID)
+			processedBundlesCounter.WithLabelValues("failed").Inc()
+			continue
+		}
+
+		// Create the TxPoolBundle using the validated transactions
+		bundle := TxPoolBundle{
+			Txs:               validTxs,
+			BlockNumber:       params.BlockNumber,
+			MinTimestamp:      params.MinTimestamp,
+			MaxTimestamp:      params.MaxTimestamp,
+			RevertingTxHashes: params.RevertingTxHashes,
+			ReplacementUUID:   params.ReplacementUUID,
+			Builders:          params.Builders,
+		}
+
+		// Log details of each transaction in the bundle
+		for j, tx := range bundle.Txs {
+			log.Info().
+				Int("index", j+1).
+				Interface("to", tx.To()).
+				Uint64("nonce", tx.Nonce()).
+				Uint64("gas", tx.Gas()).
+				Interface("value", tx.Value()).
+				Msg("Transaction details")
+		}
+
+		// Add the bundle to the transaction pool
+		err := txPool.addBundle(&bundle, false)
+		if err != nil {
+			log.Error().Str("uuid", bundle.ReplacementUUID).Err(err).Msg("Failed to add bundle to pool")
+			failedBundles = append(failedBundles, bundle.ReplacementUUID)
+			processedBundlesCounter.WithLabelValues("failed").Inc()
+			continue
+		}
+
+		processedBundles = append(processedBundles, bundle.ReplacementUUID)
+		processedBundlesCounter.WithLabelValues("success").Inc()
+		log.Info().Str("uuid", bundle.ReplacementUUID).Msg("Bundle received and added to the pool")
+	}
+
+	// Respond with the result
+	response := map[string]interface{}{
+		"processedBundles": processedBundles,
+		"failedBundles":    failedBundles,
+	}
+
+	return response
 }
 
 // CancelBundleRequest represents a request to cancel a bundle.
